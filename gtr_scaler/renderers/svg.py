@@ -4,6 +4,7 @@
 # Patch before importing so they resolve correctly on Python 3.10+.
 import collections
 import collections.abc
+
 for _name in ("Mapping", "MutableMapping", "Sequence", "Hashable"):
     if not hasattr(collections, _name):
         setattr(collections, _name, getattr(collections.abc, _name))
@@ -19,20 +20,26 @@ from gtr_scaler.domain.scales import Scale
 
 # Shared interval → display label (same as ASCII renderer)
 _INTERVAL_LABEL: dict[str, str] = {
-    "1":  "R",
-    "m2": "b2", "M2": "2",
-    "m3": "b3", "M3": "3",
-    "P4": "4",  "A4": "#4",
-    "d5": "b5", "P5": "5",
-    "m6": "b6", "M6": "6",
-    "m7": "b7", "M7": "7",
+    "1": "R",
+    "m2": "b2",
+    "M2": "2",
+    "m3": "b3",
+    "M3": "3",
+    "P4": "4",
+    "A4": "#4",
+    "d5": "b5",
+    "P5": "5",
+    "m6": "b6",
+    "M6": "6",
+    "m7": "b7",
+    "M7": "7",
 }
 
 _TETRAD_INTERVALS = frozenset({"1", "m3", "M3", "d5", "A4", "P5", "m7", "M7"})
 
 # Colors matching the ASCII renderer's semantic coloring
-_COLOR_ROOT    = "firebrick"
-_COLOR_TETRAD  = "steelblue"
+_COLOR_ROOT = "firebrick"
+_COLOR_TETRAD = "steelblue"
 _COLOR_PASSING = "olivedrab"
 
 
@@ -46,10 +53,10 @@ def _interval_color(interval: str) -> str:
 
 def _fretboard_style(num_frets: int) -> dict:
     """Return a style dict that scales the diagram height to fit all frets comfortably."""
-    fret_space = 44          # px between frets — comfortable for radius-12 markers
-    nut_size   = 10
-    v_padding  = 60          # top + bottom margins (spacing * 2)
-    height     = fret_space * (num_frets - 1) + nut_size * 2 + v_padding
+    fret_space = 44  # px between frets — comfortable for radius-12 markers
+    nut_size = 10
+    v_padding = 60  # top + bottom margins (spacing * 2)
+    height = fret_space * (num_frets - 1) + nut_size * 2 + v_padding
     return {
         "drawing": {
             "height": max(height, 180),
@@ -112,11 +119,11 @@ def _rotate_ccw(svg: str) -> str:
 
     # Wrap everything between <svg ...> and </svg> in a rotated group
     # (skip past the XML declaration to find the <svg> opening tag)
-    svg_tag_start = svg.index('<svg')
-    open_end      = svg.index('>', svg_tag_start) + 1
-    close_start   = svg.rindex('</svg>')
-    content     = svg[open_end:close_start]
-    wrapped     = f'<g transform="translate(0,{w:.0f}) rotate(-90)">{content}</g>'
+    svg_tag_start = svg.index("<svg")
+    open_end = svg.index(">", svg_tag_start) + 1
+    close_start = svg.rindex("</svg>")
+    content = svg[open_end:close_start]
+    wrapped = f'<g transform="translate(0,{w:.0f}) rotate(-90)">{content}</g>'
     return svg[:open_end] + wrapped + svg[close_start:]
 
 
@@ -166,9 +173,7 @@ def save_pdf(
     try:
         import cairosvg
     except ImportError as exc:
-        raise RuntimeError(
-            "cairosvg is required for PDF export: pip install cairosvg"
-        ) from exc
+        raise RuntimeError("cairosvg is required for PDF export: pip install cairosvg") from exc
 
     svg = render_svg(root, scale, fret_start, fret_end, notes_per_string)
     cairosvg.svg2pdf(bytestring=svg.encode(), write_to=str(path))

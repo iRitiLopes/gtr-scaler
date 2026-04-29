@@ -7,28 +7,34 @@ from gtr_scaler.domain.scales import Scale
 
 # Interval symbol → display label (1 or 2 chars)
 _INTERVAL_LABEL: dict[str, str] = {
-    '1':  'R',
-    'm2': 'b2', 'M2': '2',
-    'm3': 'b3', 'M3': '3',
-    'P4': '4',  'A4': '#4',
-    'd5': 'b5', 'P5': '5',
-    'm6': 'b6', 'M6': '6',
-    'm7': 'b7', 'M7': '7',
+    "1": "R",
+    "m2": "b2",
+    "M2": "2",
+    "m3": "b3",
+    "M3": "3",
+    "P4": "4",
+    "A4": "#4",
+    "d5": "b5",
+    "P5": "5",
+    "m6": "b6",
+    "M6": "6",
+    "m7": "b7",
+    "M7": "7",
 }
 
 # Tetrad intervals (root, 3rd, 5th, 7th)
-_TETRAD_INTERVALS = frozenset({'1', 'm3', 'M3', 'd5', 'A4', 'P5', 'm7', 'M7'})
+_TETRAD_INTERVALS = frozenset({"1", "m3", "M3", "d5", "A4", "P5", "m7", "M7"})
 
-_RESET  = '\033[0m'
-_RED    = '\033[1;91m'   # bold bright red   — root
-_GREEN  = '\033[1;92m'   # bold bright green — tetrad tones
-_YELLOW = '\033[0;33m'   # yellow            — passing tones
+_RESET = "\033[0m"
+_RED = "\033[1;91m"  # bold bright red   — root
+_GREEN = "\033[1;92m"  # bold bright green — tetrad tones
+_YELLOW = "\033[0;33m"  # yellow            — passing tones
 
 
 def _colorize(text: str, interval: str, color: bool) -> str:
     if not color:
         return text
-    if interval == '1':
+    if interval == "1":
         code = _RED
     elif interval in _TETRAD_INTERVALS:
         code = _GREEN
@@ -39,16 +45,18 @@ def _colorize(text: str, interval: str, color: bool) -> str:
 
 def _marker(cell: FretCell, color: bool) -> str:
     """Return the padded cell string (dashes + label) between fret bars."""
-    label = _INTERVAL_LABEL.get(cell.interval, '?')
+    label = _INTERVAL_LABEL.get(cell.interval, "?")
     colored_label = _colorize(label, cell.interval, color)
     # Pad with dashes so visual width is always 4 chars (label is 1 or 2 visible chars)
-    pad = '-' * (3 - len(label))
+    pad = "-" * (3 - len(label))
     return f"-{colored_label}{pad}"
 
 
 def render(
-    root: str, scale: Scale,
-    fret_start: int = 0, fret_end: int = 12,
+    root: str,
+    scale: Scale,
+    fret_start: int = 0,
+    fret_end: int = 12,
     color: bool | None = None,
     notes_per_string: int | None = None,
 ) -> str:

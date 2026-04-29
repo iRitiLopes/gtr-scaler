@@ -28,8 +28,8 @@ from gtr_scaler.renderers.ascii import render
 
 def _parse_frets(value: str) -> tuple[int, int]:
     """Accept '22' → (0, 22) or '5-9' → (5, 9)."""
-    if '-' in value:
-        parts = value.split('-', 1)
+    if "-" in value:
+        parts = value.split("-", 1)
         start, end = int(parts[0]), int(parts[1])
         if start < 0 or end < start:
             raise argparse.ArgumentTypeError(
@@ -49,30 +49,43 @@ def main() -> None:
     )
     parser.add_argument("root", nargs="?", default="A", help="Root note (default: A)")
     parser.add_argument(
-        "scale", nargs="?", default="pentatonic_minor",
+        "scale",
+        nargs="?",
+        default="pentatonic_minor",
         help=f"Scale name (default: pentatonic_minor). Available: {', '.join(SCALE_PATTERNS)}",
     )
 
     fret_group = parser.add_mutually_exclusive_group()
     fret_group.add_argument(
-        "--frets", default="12", metavar="N or START-END",
+        "--frets",
+        default="12",
+        metavar="N or START-END",
         help="Fret range: single number (0 to N) or START-END (default: 12)",
     )
     fret_group.add_argument(
-        "--notes", type=int, default=None, metavar="N",
+        "--notes",
+        type=int,
+        default=None,
+        metavar="N",
         help="Notes per string flowing continuously across strings; "
-             "fretboard ends at the last note needed (mutually exclusive with --frets)",
+        "fretboard ends at the last note needed (mutually exclusive with --frets)",
     )
 
-    parser.add_argument("--mode", type=int, default=1, metavar="N", help="Mode degree, 1-indexed (default: 1)")
     parser.add_argument(
-        "--start-degree", type=int, default=1, metavar="N",
+        "--mode", type=int, default=1, metavar="N", help="Mode degree, 1-indexed (default: 1)"
+    )
+    parser.add_argument(
+        "--start-degree",
+        type=int,
+        default=1,
+        metavar="N",
         help="Scale degree to start from on the low E string, 1-indexed (default: 1 = root)",
     )
     parser.add_argument(
-        "--output", default=None, metavar="FILE",
-        help="Export to file instead of printing ASCII. "
-             "Extension determines format: .svg or .pdf",
+        "--output",
+        default=None,
+        metavar="FILE",
+        help="Export to file instead of printing ASCII. Extension determines format: .svg or .pdf",
     )
 
     args = parser.parse_args()
@@ -110,8 +123,10 @@ def main() -> None:
 
 def _export(
     path: str,
-    root: str, scale,
-    fret_start: int, fret_end: int,
+    root: str,
+    scale,
+    fret_start: int,
+    fret_end: int,
     notes_per_string: int | None,
 ) -> None:
     from gtr_scaler.renderers.svg import save_pdf, save_svg

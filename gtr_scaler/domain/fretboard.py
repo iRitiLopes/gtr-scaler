@@ -6,9 +6,9 @@ from .notes import note_to_semitone
 from .scales import Scale
 
 # Standard tuning: low E → high E
-STRING_NAMES: tuple[str, ...] = ('E', 'A', 'D', 'G', 'B', 'e')
+STRING_NAMES: tuple[str, ...] = ("E", "A", "D", "G", "B", "e")
 _OPEN_SEMITONES: tuple[int, ...] = tuple(
-    note_to_semitone(n) for n in ('E', 'A', 'D', 'G', 'B', 'E')
+    note_to_semitone(n) for n in ("E", "A", "D", "G", "B", "E")
 )
 
 
@@ -16,11 +16,11 @@ _OPEN_SEMITONES: tuple[int, ...] = tuple(
 class FretCell:
     string_idx: int  # 0 = low E, 5 = high e
     fret: int
-    interval: str    # interval symbol, e.g. '1', 'm3', 'P5'
+    interval: str  # interval symbol, e.g. '1', 'm3', 'P5'
 
     @property
     def is_root(self) -> bool:
-        return self.interval == '1'
+        return self.interval == "1"
 
 
 def project_scale(
@@ -38,11 +38,13 @@ def project_scale(
         for fret in range(fret_start, fret_end + 1):
             pitch = (open_semitone + fret) % 12
             if pitch in pitch_to_interval:
-                cells.append(FretCell(
-                    string_idx=string_idx,
-                    fret=fret,
-                    interval=pitch_to_interval[pitch],
-                ))
+                cells.append(
+                    FretCell(
+                        string_idx=string_idx,
+                        fret=fret,
+                        interval=pitch_to_interval[pitch],
+                    )
+                )
     return cells
 
 
@@ -98,11 +100,13 @@ def project_scale_n_notes(
         while count < notes_per_string and fret <= start_fret + _MAX_EXTRA:
             pitch = (open_semitone + fret) % 12
             if pitch in pitch_to_interval:
-                cells.append(FretCell(
-                    string_idx=string_idx,
-                    fret=fret,
-                    interval=pitch_to_interval[pitch],
-                ))
+                cells.append(
+                    FretCell(
+                        string_idx=string_idx,
+                        fret=fret,
+                        interval=pitch_to_interval[pitch],
+                    )
+                )
                 count += 1
                 if fret > max_fret:
                     max_fret = fret
@@ -122,9 +126,7 @@ def degree_fret_start(root: str, scale: Scale, degree: int) -> int:
     degree: 1-indexed (1 = root, 2 = second scale degree, etc.)
     """
     if degree < 1 or degree > len(scale.intervals):
-        raise ValueError(
-            f"Degree {degree} out of range for a {len(scale.intervals)}-note scale"
-        )
+        raise ValueError(f"Degree {degree} out of range for a {len(scale.intervals)}-note scale")
     root_semitone = note_to_semitone(root)
     degree_semitone = (root_semitone + scale.semitones[degree - 1]) % 12
     open_e = _OPEN_SEMITONES[0]  # E = 4

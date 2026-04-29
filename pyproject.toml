@@ -6,10 +6,19 @@ build-backend = "hatchling.build"
 name = "gtr-scaler"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "fretboard==1.0.0",
+    "cairosvg>=2.7.0",
+]
 
 [project.scripts]
 gtr-scaler = "gtr_scaler.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
