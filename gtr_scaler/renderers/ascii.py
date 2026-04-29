@@ -2,7 +2,7 @@
 
 import sys
 
-from gtr_scaler.domain.fretboard import FretCell, STRING_NAMES, project_scale, project_scale_n_notes
+from gtr_scaler.domain.fretboard import STRING_NAMES, FretCell, project_scale, project_scale_n_notes
 from gtr_scaler.domain.scales import Scale
 
 # Interval symbol → display label (1 or 2 chars)
@@ -59,12 +59,14 @@ def render(
     fret_end: int = 12,
     color: bool | None = None,
     notes_per_string: int | None = None,
+    shape_label: str | None = None,
 ) -> str:
     """Return a multi-line ASCII fretboard diagram string.
 
     color: True=always, False=never, None=auto-detect (tty).
     notes_per_string: if set, show exactly this many scale notes per string and
                       ignore fret_end (the diagram ends at the last note needed).
+    shape_label: optional label appended to the title (e.g. "Shape 1").
     """
     if color is None:
         color = sys.stdout.isatty()
@@ -76,7 +78,10 @@ def render(
     cell_map: dict[tuple[int, int], FretCell] = {(c.string_idx, c.fret): c for c in cells}
 
     lines: list[str] = []
-    lines.append(f"{root} {scale.display_name}  |  Standard tuning (E A D G B e)")
+    title_str = f"{root} {scale.display_name}"
+    if shape_label:
+        title_str += f" \u2014 {shape_label}"
+    lines.append(f"{title_str}  |  Standard tuning (E A D G B e)")
     lines.append("")
 
     # Fret number header

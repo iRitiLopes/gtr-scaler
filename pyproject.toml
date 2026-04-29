@@ -9,6 +9,7 @@ requires-python = ">=3.11"
 dependencies = [
     "fretboard==1.0.0",
     "cairosvg>=2.7.0",
+    "pypdf>=4.0",
 ]
 
 [project.scripts]
@@ -16,6 +17,7 @@ gtr-scaler = "gtr_scaler.__main__:main"
 
 [dependency-groups]
 dev = [
+    "mypy>=1.0",
     "pytest>=8.0",
     "ruff>=0.5",
 ]
@@ -28,3 +30,24 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"gtr_scaler/renderers/svg.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+# Untyped third-party libraries
+[[tool.mypy.overrides]]
+module = ["fretboard.*", "cairosvg.*"]
+ignore_missing_imports = true
+
+# Tests are intentionally untyped; relax strictness
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false

@@ -7,6 +7,9 @@ It targets two output formats (SVG/PDF and ASCII/text) and will eventually expos
 server so outputs can be previewed and downloaded from a browser.
 
 **Current state:** ASCII viewer, SVG renderer, and PDF export are all working.
+All diagrams include titles. The `--all-degrees` flag generates one diagram per
+scale degree (CAGED-style shapes). Multi-page PDFs are supported via `pypdf`
+with a maximum of 3 diagrams per page.
 Flask server is not yet built.
 
 ---
@@ -202,9 +205,14 @@ Returns the first fret ≥ min_fret on a given string where `target_pitch` (mod 
 `degree_fret_start(root, scale, degree) -> int` returns the first fret (≥ 0) on the
 **low E string** where scale degree N occurs.
 
-- Always used when `--notes` is active (even for degree 1), so the pattern is anchored
-  to the chosen degree rather than to fret 0 (which may not be a scale note).
-- Only used when `--start-degree != 1` in `--frets` mode.
+`degree_fret_start_with_shift(root, scale, degree, notes_per_string) -> int` extends
+this by tentatively projecting the N-notes-per-string shape. If `base_fret == 0` (open
+low E string) and any higher string's first note would be ≥ 10 frets, the shape is
+shifted up by 12 frets to sit in a more compact, playable region of the neck.
+
+- `degree_fret_start_with_shift` is used when `--notes` is active, so the pattern is
+  anchored to the chosen degree and remains playable.
+- `degree_fret_start` is used when `--start-degree != 1` in `--frets` mode.
 
 ---
 
@@ -274,6 +282,7 @@ for _name in ("Mapping", "MutableMapping", "Sequence", "Hashable"):
 | Web server   | Flask               | Not yet built — future layer                   |
 | SVG          | `fretboard` + `svgwrite` | Diagram rendering                         |
 | PDF          | `cairosvg`          | SVG → PDF conversion                           |
+| PDF merging  | `pypdf`             | Multi-page PDF assembly for `--all-degrees`    |
 | Testing      | `pytest`            | Unit + integration, no mocks of core logic     |
 | Packaging    | `pyproject.toml`    | PEP 517/518, hatchling backend                 |
 | Dep manager  | `uv`                | Use `uv add`, `uv run`, `uv sync`; lock file committed |
@@ -313,8 +322,9 @@ gtr_scaler/
 | `compute_mode` | `(scale, degree) -> Scale` | Rotate intervals to Nth mode |
 | `degree_root` | `(root, scale, degree) -> str` | Find the note name of the Nth degree |
 | `project_scale` | `(root, scale, fret_start, fret_end) -> list[FretCell]` | Full projection |
-| `project_scale_n_notes` | `(root, scale, notes_per_string, fret_start) -> tuple[list[FretCell], int]` | N-notes-per-string projection; returns cells + computed fret_end |
-| `degree_fret_start` | `(root, scale, degree) -> int` | First fret on low E string where degree N occurs |
+| `project_scale_n_notes` | `(root, scale, nps, fret_start) -> tuple[...]` | N-notes/string |
+| `degree_fret_start` | `(root, scale, degree) -> int` | First fret on low E for degree N |
+| `degree_fret_start_with_shift` | `(root, scale, degree, nps) -> int` | Fret for degree N on low E; +12 if wide |
 
 ---
 
@@ -323,17 +333,19 @@ gtr_scaler/
 ```
 python -m gtr_scaler [root] [scale] [--frets N|START-END | --notes N]
                      [--mode N] [--start-degree N] [--output FILE]
+                     [--all-degrees]
 ```
 
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `root` | `A` | Root note (e.g. `C`, `F#`, `Bb`) |
 | `scale` | `pentatonic_minor` | Scale key from `SCALE_PATTERNS` |
-| `--frets` | `12` | Fret range: `22` (0–22) or `5-9` (5–9 only). Mutually exclusive with `--notes`. |
-| `--notes` | — | N notes per string, scale flowing continuously across strings. Mutually exclusive with `--frets`. |
+| `--frets` | `12` | Fret range: `22` or `5-9`. Mutually exclusive with `--notes`. |
+| `--notes` | — | N notes per string. Mutually exclusive with `--frets`. |
 | `--mode` | `1` | Mode degree (shifts root to Nth degree of parent scale) |
-| `--start-degree` | `1` | Scale degree to anchor on the low E string. With `--notes`, always applied (including degree 1). With `--frets`, only applied when ≠ 1. |
-| `--output` | — | Export to file. Extension determines format: `.svg` or `.pdf`. Omit to print ASCII to stdout. |
+| `--start-degree` | `1` | Scale degree to anchor on low E. With `--notes`, always applied. |
+| `--output` | — | Export to file. Extension: `.svg` or `.pdf`. |
+| `--all-degrees` | `false` | One diagram per degree. Requires `--notes` 2–4. No `--start-degree` |
 
 Examples:
 ```bash
@@ -347,9 +359,11 @@ python -m gtr_scaler A dorian                                 # A Dorian directl
 python -m gtr_scaler A pentatonic_minor --notes 3             # 3 notes/string from root
 python -m gtr_scaler C pentatonic_major --notes 3 --start-degree 3  # start from 3rd degree (E)
 python -m gtr_scaler F# melodic_minor --mode 7 --notes 3 --start-degree 3
-python -m gtr_scaler F altered                                # F altered scale (= F# mel.min. mode 7)
+python -m gtr_scaler F altered                         # F altered (= F# mel.min. mode 7)
 python -m gtr_scaler A pentatonic_minor --output scale.svg    # export SVG
 python -m gtr_scaler A pentatonic_minor --notes 3 --output scale.pdf  # export PDF
+python -m gtr_scaler A pentatonic_minor --all-degrees --notes 3  # all 5 shapes (ASCII)
+python -m gtr_scaler C major --all-degrees --notes 3 --output shapes.pdf  # paginated PDF
 ```
 
 ---

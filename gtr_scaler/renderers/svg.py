@@ -41,6 +41,8 @@ _TETRAD_INTERVALS = frozenset({"1", "m3", "M3", "d5", "A4", "P5", "m7", "M7"})
 _COLOR_ROOT = "firebrick"
 _COLOR_TETRAD = "steelblue"
 _COLOR_PASSING = "olivedrab"
+_MULTI_DIAGRAM_GAP = 20  # px gap between stacked diagrams
+_TITLE_HEIGHT = 60
 
 
 def _interval_color(interval: str) -> str:
@@ -51,7 +53,7 @@ def _interval_color(interval: str) -> str:
     return _COLOR_PASSING
 
 
-def _fretboard_style(num_frets: int) -> dict:
+def _fretboard_style(num_frets: int) -> dict[str, dict[str, int]]:
     """Return a style dict that scales the diagram height to fit all frets comfortably."""
     fret_space = 44  # px between frets — comfortable for radius-12 markers
     nut_size = 10
@@ -111,8 +113,12 @@ def _rotate_ccw(svg: str) -> str:
     achieved with: transform="translate(0,W) rotate(-90)"
     The canvas dimensions are swapped: new width=H, new height=W.
     """
-    w = float(re.search(r'<svg[^>]*\swidth="([^"]+)"', svg).group(1))
-    h = float(re.search(r'<svg[^>]*\sheight="([^"]+)"', svg).group(1))
+    m_w = re.search(r'<svg[^>]*\swidth="([^"]+)"', svg)
+    m_h = re.search(r'<svg[^>]*\sheight="([^"]+)"', svg)
+    assert m_w is not None, "SVG missing width attribute"
+    assert m_h is not None, "SVG missing height attribute"
+    w = float(m_w.group(1))
+    h = float(m_h.group(1))
 
     svg = re.sub(r'(<svg[^>]*\s)width="[^"]+"', rf'\g<1>width="{h:.0f}"', svg, count=1)
     svg = re.sub(r'(<svg[^>]*\s)height="[^"]+"', rf'\g<1>height="{w:.0f}"', svg, count=1)
@@ -127,12 +133,71 @@ def _rotate_ccw(svg: str) -> str:
     return svg[:open_end] + wrapped + svg[close_start:]
 
 
+def _wrap_with_title(
+    svg: str, title: str, title_height: int = _TITLE_HEIGHT
+) -> str:
+    """Wrap an already-rotated SVG diagram with a title above it.
+
+    The input SVG is assumed to already be rotated 90° CCW (via _rotate_ccw).
+    Its structure is: <svg width="H" height="280">
+                        <g transform="translate(0,280) rotate(-90)">...</g>
+                      </svg>
+
+    This function:
+      1. Increases the SVG height by title_height.
+      2. Shifts the inner <g> transform's Y translation by the same amount.
+      3. Inserts a centered <text> element before the <g>.
+    """
+    m_w = re.search(r'<svg[^>]*\swidth="([^"]+)"', svg)
+    m_h = re.search(r'<svg[^>]*\sheight="([^"]+)"', svg)
+    assert m_w is not None, "SVG missing width attribute"
+    assert m_h is not None, "SVG missing height attribute"
+    w = float(m_w.group(1))
+    h = float(m_h.group(1))
+    new_height = h + title_height
+
+    # Update height
+    svg = re.sub(
+        r'(<svg[^>]*\s)height="[^"]+"',
+        rf'\g<1>height="{new_height:.0f}"',
+        svg,
+        count=1,
+    )
+
+    # Shift the <g> transform's Y translation
+    def _shift_g(match: re.Match[str]) -> str:
+        old_y = float(match.group(1))
+        new_y = old_y + title_height
+        return f'translate(0,{new_y:.0f}) rotate(-90)'
+
+    svg = re.sub(
+        r'translate\(0,([^)]+)\)\s*rotate\(-90\)',
+        _shift_g,
+        svg,
+        count=1,
+    )
+
+    # Insert title text after <svg ...>
+    text_elem = (
+        f'<text x="{w / 2:.0f}" y="{title_height / 2 + 7:.0f}" '
+        f'text-anchor="middle" font-family="sans-serif" '
+        f'font-size="16" font-weight="bold" fill="#333">'
+        f"{title}</text>\n"
+    )
+    svg_tag_start = svg.index("<svg")
+    svg_tag_end = svg.index(">", svg_tag_start) + 1
+    svg = svg[:svg_tag_end] + "\n" + text_elem + svg[svg_tag_end:]
+
+    return svg
+
+
 def render_svg(
     root: str,
     scale: Scale,
     fret_start: int = 0,
     fret_end: int = 12,
     notes_per_string: int | None = None,
+    title: str | None = None,
 ) -> str:
     """Return an SVG string of the fretboard diagram."""
     if notes_per_string is not None:
@@ -145,7 +210,10 @@ def render_svg(
 
     buf = StringIO()
     fb.drawing.write(buf)
-    return _rotate_ccw(buf.getvalue())
+    svg = _rotate_ccw(buf.getvalue())
+    if title is not None:
+        svg = _wrap_with_title(svg, title)
+    return svg
 
 
 def save_svg(
@@ -155,9 +223,10 @@ def save_svg(
     fret_start: int = 0,
     fret_end: int = 12,
     notes_per_string: int | None = None,
+    title: str | None = None,
 ) -> None:
     """Save the fretboard diagram as an SVG file."""
-    svg = render_svg(root, scale, fret_start, fret_end, notes_per_string)
+    svg = render_svg(root, scale, fret_start, fret_end, notes_per_string, title=title)
     Path(path).write_text(svg, encoding="utf-8")
 
 
@@ -168,6 +237,7 @@ def save_pdf(
     fret_start: int = 0,
     fret_end: int = 12,
     notes_per_string: int | None = None,
+    title: str | None = None,
 ) -> None:
     """Save the fretboard diagram as a PDF file (via cairosvg)."""
     try:
@@ -175,5 +245,124 @@ def save_pdf(
     except ImportError as exc:
         raise RuntimeError("cairosvg is required for PDF export: pip install cairosvg") from exc
 
-    svg = render_svg(root, scale, fret_start, fret_end, notes_per_string)
+    svg = render_svg(root, scale, fret_start, fret_end, notes_per_string, title=title)
     cairosvg.svg2pdf(bytestring=svg.encode(), write_to=str(path))
+
+
+def render_multi_svg(
+    diagrams: list[tuple[str, Scale, int, int, int | None]],
+    titles: list[str] | None = None,
+) -> str:
+    """Stack multiple fretboard diagrams vertically into a single SVG."""
+    if not diagrams:
+        raise ValueError("diagrams list must not be empty")
+    if titles is not None and len(titles) != len(diagrams):
+        raise ValueError(
+            f"titles length ({len(titles)}) must match diagrams length ({len(diagrams)})"
+        )
+
+    parts: list[str] = []
+    total_height = 0
+    max_width = 0
+
+    for i, (root, scale, fret_start, fret_end, notes_per_string) in enumerate(diagrams):
+        title = titles[i] if titles else None
+        svg = render_svg(root, scale, fret_start, fret_end, notes_per_string, title=title)
+        m_w = re.search(r'<svg[^>]*\swidth="([^"]+)"', svg)
+        m_h = re.search(r'<svg[^>]*\sheight="([^"]+)"', svg)
+        assert m_w is not None and m_h is not None, "SVG missing width/height"
+        w = int(float(m_w.group(1)))
+        h = int(float(m_h.group(1)))
+        max_width = max(max_width, w)
+        offset = total_height
+        total_height += h
+        if i < len(diagrams) - 1:
+            total_height += _MULTI_DIAGRAM_GAP
+
+        # Strip XML declaration
+        svg = re.sub(r'<\?xml[^?]*\?>\s*', '', svg)
+        # Inject x/y offset into the outer <svg> tag so it acts as a nested viewport
+        svg = re.sub(r'(<svg)(\s)', rf'\1 x="0" y="{offset}"\2', svg, count=1)
+        parts.append(svg)
+
+    master = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" '
+        f'width="{max_width}" height="{total_height}">\n'
+        + "\n".join(parts)
+        + "\n</svg>"
+    )
+    return master
+
+
+def save_multi_svg(
+    path: str | Path,
+    diagrams: list[tuple[str, Scale, int, int, int | None]],
+    titles: list[str] | None = None,
+) -> None:
+    """Save multiple diagrams as a single stacked SVG file."""
+    svg = render_multi_svg(diagrams, titles=titles)
+    Path(path).write_text(svg, encoding="utf-8")
+
+
+def save_multi_pdf(
+    path: str | Path,
+    diagrams: list[tuple[str, Scale, int, int, int | None]],
+    titles: list[str] | None = None,
+    max_per_page: int = 3,
+) -> None:
+    """Save multiple diagrams as a paginated PDF file.
+
+    Diagrams are split into chunks of ``max_per_page`` per page.
+    Each chunk is rendered as a single SVG, converted to PDF via cairosvg,
+    then all pages are merged with pypdf.
+    """
+    if titles is not None and len(titles) != len(diagrams):
+        raise ValueError(
+            f"titles length ({len(titles)}) must match "
+            f"diagrams length ({len(diagrams)})"
+        )
+
+    try:
+        import cairosvg
+    except ImportError as exc:
+        raise RuntimeError(
+            "cairosvg is required for PDF export: pip install cairosvg"
+        ) from exc
+
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except ImportError as exc:
+        raise RuntimeError(
+            "pypdf is required for multi-page PDF export: pip install pypdf"
+        ) from exc
+
+    from io import BytesIO
+
+    # Split into chunks
+    page_bytes_list: list[bytes] = []
+    for start in range(0, len(diagrams), max_per_page):
+        end = start + max_per_page
+        chunk = diagrams[start:end]
+        chunk_titles = titles[start:end] if titles else None
+        page_svg = render_multi_svg(chunk, titles=chunk_titles)
+        page_bytes = cairosvg.svg2pdf(bytestring=page_svg.encode())
+        if page_bytes is None:
+            # Older cairosvg may require write_to; use temp file
+            import tempfile
+
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                tmp_path = tmp.name
+            cairosvg.svg2pdf(bytestring=page_svg.encode(), write_to=tmp_path)
+            page_bytes = Path(tmp_path).read_bytes()
+            Path(tmp_path).unlink()
+        page_bytes_list.append(page_bytes)
+
+    # Merge pages
+    writer = PdfWriter()
+    for page_data in page_bytes_list:
+        reader = PdfReader(BytesIO(page_data))
+        for page in reader.pages:
+            writer.add_page(page)
+    output = BytesIO()
+    writer.write(output)
+    Path(path).write_bytes(output.getvalue())

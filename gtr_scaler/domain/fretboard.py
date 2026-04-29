@@ -120,6 +120,32 @@ def project_scale_n_notes(
     return cells, max_fret
 
 
+def degree_fret_start_with_shift(
+    root: str,
+    scale: Scale,
+    degree: int,
+    notes_per_string: int,
+    threshold: int = 10,
+) -> int:
+    """Return the starting fret for a degree, shifting up by 12 if needed.
+
+    When base_fret is 0 and projecting from there forces any higher string's
+    first note to be >= ``threshold`` (default 10), the shape is shifted up
+    by one octave (+12 frets) so it sits in a more compact, playable region
+    of the neck.
+    """
+    base_fret = degree_fret_start(root, scale, degree)
+    if base_fret == 0:
+        cells, _ = project_scale_n_notes(root, scale, notes_per_string, base_fret)
+        for i in range(1, 6):
+            string_cells = [c for c in cells if c.string_idx == i]
+            if string_cells:
+                first_fret = min(c.fret for c in string_cells)
+                if first_fret >= threshold:
+                    return base_fret + 12
+    return base_fret
+
+
 def degree_fret_start(root: str, scale: Scale, degree: int) -> int:
     """Return the first fret (≥ 0) on the low E string where scale degree N occurs.
 

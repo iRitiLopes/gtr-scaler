@@ -1,4 +1,8 @@
-from gtr_scaler.domain.fretboard import project_scale, project_scale_n_notes
+from gtr_scaler.domain.fretboard import (
+    degree_fret_start_with_shift,
+    project_scale,
+    project_scale_n_notes,
+)
 from gtr_scaler.domain.scales import get_scale
 
 
@@ -137,3 +141,35 @@ def test_a_minor_pentatonic_3_notes_per_string_fret_start_5():
             f"String {string_idx}: got {by_string.get(string_idx)}, expected {frets}"
         )
     assert fret_end == 22
+
+
+def test_degree_fret_start_with_shift_no_shift_when_compact():
+    # C major, degree 3, notes_per_string=3
+    # base_fret = 0, shape stays compact (all strings start at 0 or 1)
+    scale = get_scale("major")
+    result = degree_fret_start_with_shift("C", scale, 3, 3)
+    assert result == 0
+
+
+def test_degree_fret_start_with_shift_shifts_when_wide():
+    # E major pentatonic, degree 1, notes_per_string=2
+    # base_fret = 0, but string 1 starts at fret 11 (>= threshold 10)
+    scale = get_scale("pentatonic_major")
+    result = degree_fret_start_with_shift("E", scale, 1, 2)
+    assert result == 12
+
+
+def test_degree_fret_start_with_shift_no_shift_at_intermediate_fret():
+    # A minor pentatonic, degree 1, notes_per_string=2
+    # base_fret = 5, shape from 5 is compact (all strings start at 5-8)
+    scale = get_scale("pentatonic_minor")
+    result = degree_fret_start_with_shift("A", scale, 1, 2)
+    assert result == 5
+
+
+def test_degree_fret_start_with_shift_no_shift_at_fret_1():
+    # Find a scale/degree where base_fret == 1 (e.g., F on low E)
+    # F major, degree 1: F is at fret 1 on low E
+    scale = get_scale("major")
+    result = degree_fret_start_with_shift("F", scale, 1, 3)
+    assert result == 1  # should NOT shift because base != 0

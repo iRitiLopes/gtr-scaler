@@ -21,3 +21,20 @@ def test_render_a_minor_pentatonic_3nps_fret_start_5():
         ]
     )
     assert result == expected
+
+
+def test_render_with_shape_label():
+    scale = get_scale("pentatonic_minor")
+    result = render("A", scale, fret_start=0, fret_end=12, color=False, shape_label="Shape 1")
+    header = result.split("\n")[0]
+    assert "Shape 1" in header
+    assert "\u2014" in header
+    assert "A Pentatonic Minor" in header
+
+
+def test_render_without_shape_label():
+    scale = get_scale("pentatonic_minor")
+    result = render("A", scale, fret_start=0, fret_end=12, color=False)
+    header = result.split("\n")[0]
+    assert "\u2014" not in header
+    assert header == "A Pentatonic Minor  |  Standard tuning (E A D G B e)"

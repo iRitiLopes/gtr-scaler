@@ -3,6 +3,7 @@
 Usage:
   python -m gtr_scaler [root] [scale] [--frets N|START-END] [--mode N]
                        [--notes N] [--start-degree N] [--output FILE]
+                       [--all-degrees]
 
 Examples:
   python -m gtr_scaler                                        # A minor pentatonic, frets 0-12
@@ -15,14 +16,15 @@ Examples:
   python -m gtr_scaler C pentatonic_major --notes 3 --start-degree 3  # start from 3rd degree
   python -m gtr_scaler A pentatonic_minor --output scale.svg  # export SVG
   python -m gtr_scaler A pentatonic_minor --output scale.pdf  # export PDF
+  python -m gtr_scaler A pentatonic_minor --all-degrees --notes 3  # all 5 shapes
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-from gtr_scaler.domain.fretboard import degree_fret_start
-from gtr_scaler.domain.scales import SCALE_PATTERNS, compute_mode, degree_root, get_scale
+from gtr_scaler.domain.fretboard import degree_fret_start, degree_fret_start_with_shift
+from gtr_scaler.domain.scales import SCALE_PATTERNS, Scale, compute_mode, degree_root, get_scale
 from gtr_scaler.renderers.ascii import render
 
 
@@ -40,6 +42,31 @@ def _parse_frets(value: str) -> tuple[int, int]:
     if n < 0:
         raise argparse.ArgumentTypeError(f"Frets must be >= 0, got {n}")
     return 0, n
+
+
+def _get_render_params(
+    root: str,
+    scale: Scale,
+    notes: int | None,
+    frets: str,
+    start_degree: int,
+) -> tuple[int, int, int | None]:
+    """Compute fret_start, fret_end, and notes_per_string for a given degree."""
+    if notes is not None:
+        fret_start = degree_fret_start_with_shift(
+            root, scale, start_degree, notes
+        )
+        notes_per_string = notes
+        fret_end = 12  # placeholder; project_scale_n_notes computes real end
+    else:
+        notes_per_string = None
+        base_start, fret_end = _parse_frets(frets)
+        fret_start = (
+            degree_fret_start(root, scale, start_degree)
+            if start_degree != 1
+            else base_start
+        )
+    return fret_start, fret_end, notes_per_string
 
 
 def main() -> None:
@@ -87,34 +114,64 @@ def main() -> None:
         metavar="FILE",
         help="Export to file instead of printing ASCII. Extension determines format: .svg or .pdf",
     )
+    parser.add_argument(
+        "--all-degrees",
+        action="store_true",
+        default=False,
+        help="Generate one diagram per scale degree (requires --notes with value 2-4)",
+    )
 
     args = parser.parse_args()
 
     try:
+        if args.all_degrees and (args.notes is None or not 2 <= args.notes <= 4):
+            raise ValueError(
+                "--all-degrees requires --notes with a value between 2 and 4"
+            )
+
+        if args.all_degrees and args.start_degree != 1:
+            raise ValueError("--all-degrees cannot be used with --start-degree")
+
         scale = get_scale(args.scale)
         root = args.root
         if args.mode != 1:
             root = degree_root(root, scale, args.mode)
             scale = compute_mode(scale, args.mode)
 
-        if args.notes is not None:
-            # Always anchor to the first occurrence of the chosen degree on low E string
-            fret_start = degree_fret_start(root, scale, args.start_degree)
-            notes_per_string = args.notes
-            fret_end = 12  # placeholder; renderers recompute from notes_per_string
+        if args.all_degrees:
+            diagrams: list[str] = []
+            svg_diagrams: list[tuple[str, Scale, int, int, int | None]] = []
+            svg_titles: list[str] = []
+            for deg in range(1, len(scale.intervals) + 1):
+                fs, fe, nps = _get_render_params(
+                    root, scale, args.notes, args.frets, deg
+                )
+                shape_label = f"Shape {deg}"
+                if args.output is None:
+                    diagrams.append(
+                        render(
+                            root, scale, fs, fe,
+                            notes_per_string=nps, shape_label=shape_label,
+                        )
+                    )
+                else:
+                    svg_diagrams.append((root, scale, fs, fe, nps))
+                    svg_titles.append(
+                        f"{root} {scale.display_name} \u2014 {shape_label}"
+                    )
+            if args.output is None:
+                print("\n\n".join(diagrams))
+            else:
+                _export_multi(args.output, svg_diagrams, titles=svg_titles)
         else:
-            notes_per_string = None
-            base_start, fret_end = _parse_frets(args.frets)
-            fret_start = (
-                degree_fret_start(root, scale, args.start_degree)
-                if args.start_degree != 1
-                else base_start
+            fs, fe, nps = _get_render_params(
+                root, scale, args.notes, args.frets, args.start_degree
             )
-
-        if args.output is None:
-            print(render(root, scale, fret_start, fret_end, notes_per_string=notes_per_string))
-        else:
-            _export(args.output, root, scale, fret_start, fret_end, notes_per_string)
+            if args.output is None:
+                print(render(root, scale, fs, fe, notes_per_string=nps))
+            else:
+                default_title = f"{root} {scale.display_name}"
+                _export(args.output, root, scale, fs, fe, nps, title=default_title)
 
     except (ValueError, argparse.ArgumentTypeError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -124,18 +181,37 @@ def main() -> None:
 def _export(
     path: str,
     root: str,
-    scale,
+    scale: Scale,
     fret_start: int,
     fret_end: int,
     notes_per_string: int | None,
+    title: str | None = None,
 ) -> None:
     from gtr_scaler.renderers.svg import save_pdf, save_svg
 
     ext = Path(path).suffix.lower()
     if ext == ".svg":
-        save_svg(path, root, scale, fret_start, fret_end, notes_per_string)
+        save_svg(path, root, scale, fret_start, fret_end, notes_per_string, title=title)
     elif ext == ".pdf":
-        save_pdf(path, root, scale, fret_start, fret_end, notes_per_string)
+        save_pdf(path, root, scale, fret_start, fret_end, notes_per_string, title=title)
+    else:
+        print(f"Error: unsupported output format {ext!r} (use .svg or .pdf)", file=sys.stderr)
+        sys.exit(1)
+    print(f"Saved: {path}")
+
+
+def _export_multi(
+    path: str,
+    diagrams: list[tuple[str, Scale, int, int, int | None]],
+    titles: list[str] | None = None,
+) -> None:
+    from gtr_scaler.renderers.svg import save_multi_pdf, save_multi_svg
+
+    ext = Path(path).suffix.lower()
+    if ext == ".svg":
+        save_multi_svg(path, diagrams, titles=titles)
+    elif ext == ".pdf":
+        save_multi_pdf(path, diagrams, titles=titles)
     else:
         print(f"Error: unsupported output format {ext!r} (use .svg or .pdf)", file=sys.stderr)
         sys.exit(1)
