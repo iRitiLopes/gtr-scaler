@@ -14,15 +14,17 @@ _ENHARMONICS: dict[str, str] = {
 }
 
 
-def note_to_semitone(note: str) -> int:
-    """Return 0-11 semitone index for a note name (sharps or flats accepted)."""
-    canonical = _ENHARMONICS.get(note, note)
-    try:
-        return CHROMATIC.index(canonical)
-    except ValueError:
-        raise ValueError(f"Unknown note: {note!r}") from None
+class NoteService:
+    """Encapsulates chromatic note lookup logic."""
 
+    def to_semitone(self, note: str) -> int:
+        """Return 0-11 semitone index for a note name (sharps or flats accepted)."""
+        canonical = _ENHARMONICS.get(note, note)
+        try:
+            return CHROMATIC.index(canonical)
+        except ValueError:
+            raise ValueError(f"Unknown note: {note!r}") from None
 
-def semitone_to_note(semitone: int) -> str:
-    """Return the sharp-spelling note name for a 0-11 semitone index."""
-    return CHROMATIC[semitone % 12]
+    def to_name(self, semitone: int) -> str:
+        """Return the sharp-spelling note name for a 0-11 semitone index."""
+        return CHROMATIC[semitone % 12]

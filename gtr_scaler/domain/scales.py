@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 
-from .notes import note_to_semitone, semitone_to_note
+from .notes import NoteService
 
 # Interval symbol → semitones from root
 INTERVAL_SEMITONES: dict[str, int] = {
@@ -107,56 +107,60 @@ class Scale:
         return self._display or self.name.replace("_", " ").title()
 
 
-def get_scale(name: str) -> Scale:
-    """Look up a built-in scale by name."""
-    try:
-        pattern = SCALE_PATTERNS[name]
-    except KeyError:
-        available = ", ".join(SCALE_PATTERNS)
-        raise ValueError(f"Unknown scale {name!r}. Available: {available}") from None
-    return Scale(name=name, intervals=tuple(pattern.split()))
+class ScaleCatalog:
+    """Encapsulates scale lookup, mode computation, and degree-root resolution."""
 
+    def __init__(self, notes: NoteService) -> None:
+        self._notes = notes
 
-def degree_root(root: str, scale: Scale, degree: int) -> str:
-    """Return the note name of the Nth scale degree starting from *root* (1-indexed)."""
-    n = len(scale.intervals)
-    if not 1 <= degree <= n:
-        raise ValueError(f"Degree {degree} out of range for a {n}-note scale (1–{n})")
-    offset = scale.semitones[degree - 1]
-    return semitone_to_note((note_to_semitone(root) + offset) % 12)
+    def get(self, name: str) -> Scale:
+        """Look up a built-in scale by name."""
+        try:
+            pattern = SCALE_PATTERNS[name]
+        except KeyError:
+            available = ", ".join(SCALE_PATTERNS)
+            raise ValueError(f"Unknown scale {name!r}. Available: {available}") from None
+        return Scale(name=name, intervals=tuple(pattern.split()))
 
+    def degree_root(self, root: str, scale: Scale, degree: int) -> str:
+        """Return the note name of the Nth scale degree starting from *root* (1-indexed)."""
+        n = len(scale.intervals)
+        if not 1 <= degree <= n:
+            raise ValueError(f"Degree {degree} out of range for a {n}-note scale (1–{n})")
+        offset = scale.semitones[degree - 1]
+        return self._notes.to_name((self._notes.to_semitone(root) + offset) % 12)
 
-def compute_mode(scale: Scale, degree: int) -> Scale:
-    """Return the Nth mode of *scale* (degree is 1-indexed).
+    def compute_mode(self, scale: Scale, degree: int) -> Scale:
+        """Return the Nth mode of *scale* (degree is 1-indexed).
 
-    Rotates the interval pattern so that the Nth degree becomes the new root,
-    then re-maps semitone offsets back to canonical interval symbols.
-    """
-    n = len(scale.intervals)
-    if not 1 <= degree <= n:
-        raise ValueError(f"Degree {degree} out of range for a {n}-note scale (1–{n})")
-    if degree == 1:
-        return scale
+        Rotates the interval pattern so that the Nth degree becomes the new root,
+        then re-maps semitone offsets back to canonical interval symbols.
+        """
+        n = len(scale.intervals)
+        if not 1 <= degree <= n:
+            raise ValueError(f"Degree {degree} out of range for a {n}-note scale (1–{n})")
+        if degree == 1:
+            return scale
 
-    semitones = scale.semitones
-    pivot = semitones[degree - 1]
-    # Rotate the list so degree N is first, then subtract the pivot
-    rotated = tuple((semitones[(degree - 1 + i) % n] - pivot) % 12 for i in range(n))
-    intervals = tuple(_SEMITONE_TO_INTERVAL[s] for s in rotated)
+        semitones = scale.semitones
+        pivot = semitones[degree - 1]
+        # Rotate the list so degree N is first, then subtract the pivot
+        rotated = tuple((semitones[(degree - 1 + i) % n] - pivot) % 12 for i in range(n))
+        intervals = tuple(_SEMITONE_TO_INTERVAL[s] for s in rotated)
 
-    # Build a human-readable display name
-    parent_base = scale.name.split("_mode")[0]  # strip any previous mode suffix
-    if parent_base in ("major", "ionian") and degree in _MAJOR_MODE_NAMES:
-        display = _MAJOR_MODE_NAMES[degree]
-    elif parent_base == "melodic_minor" and degree in _MELODIC_MINOR_MODE_NAMES:
-        display = _MELODIC_MINOR_MODE_NAMES[degree]
-    elif parent_base == "pentatonic_major" and degree in _PENTATONIC_MAJOR_MODE_NAMES:
-        display = _PENTATONIC_MAJOR_MODE_NAMES[degree]
-    else:
-        display = f"{scale.display_name} (mode {degree})"
+        # Build a human-readable display name
+        parent_base = scale.name.split("_mode")[0]  # strip any previous mode suffix
+        if parent_base in ("major", "ionian") and degree in _MAJOR_MODE_NAMES:
+            display = _MAJOR_MODE_NAMES[degree]
+        elif parent_base == "melodic_minor" and degree in _MELODIC_MINOR_MODE_NAMES:
+            display = _MELODIC_MINOR_MODE_NAMES[degree]
+        elif parent_base == "pentatonic_major" and degree in _PENTATONIC_MAJOR_MODE_NAMES:
+            display = _PENTATONIC_MAJOR_MODE_NAMES[degree]
+        else:
+            display = f"{scale.display_name} (mode {degree})"
 
-    return Scale(
-        name=f"{parent_base}_mode{degree}",
-        intervals=intervals,
-        _display=display,
-    )
+        return Scale(
+            name=f"{parent_base}_mode{degree}",
+            intervals=intervals,
+            _display=display,
+        )

@@ -33,6 +33,7 @@ select = ["E", "F", "I"]
 
 [tool.ruff.lint.per-file-ignores]
 "gtr_scaler/renderers/svg.py" = ["E402"]
+"tests/renderers/test_ascii.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"
