@@ -1,16 +1,17 @@
-from gtr_scaler.domain.fretboard import (
-    degree_fret_start_with_shift,
-    project_scale,
-    project_scale_n_notes,
-)
-from gtr_scaler.domain.scales import get_scale
+from gtr_scaler.domain.fretboard import FretboardProjector
+from gtr_scaler.domain.notes import NoteService
+from gtr_scaler.domain.scales import ScaleCatalog
+
+notes = NoteService()
+catalog = ScaleCatalog(notes)
+projector = FretboardProjector(notes)
 
 
 def _cell_map(root: str, scale_name: str, fret_end: int = 12) -> dict[tuple[int, int], bool]:
     """Returns {(string_idx, fret): is_root} for all scale cells."""
-    scale = get_scale(scale_name)
+    scale = catalog.get(scale_name)
     return {
-        (c.string_idx, c.fret): c.is_root for c in project_scale(root, scale, fret_end=fret_end)
+        (c.string_idx, c.fret): c.is_root for c in projector.project(root, scale, fret_end=fret_end)
     }
 
 
@@ -40,37 +41,34 @@ def test_a_minor_pentatonic_a_string():
 
 
 def test_root_count_is_correct():
-    scale = get_scale("pentatonic_minor")
-    cells = project_scale("A", scale, fret_end=12)
+    scale = catalog.get("pentatonic_minor")
+    cells = projector.project("A", scale, fret_end=12)
     roots = [c for c in cells if c.is_root]
     assert len(roots) >= 6
 
 
 def test_no_extra_notes_outside_scale():
-    from gtr_scaler.domain.notes import note_to_semitone
-
-    scale = get_scale("pentatonic_minor")
+    scale = catalog.get("pentatonic_minor")
     root = "A"
-    root_st = note_to_semitone(root)
+    root_st = notes.to_semitone(root)
     scale_pitches = frozenset((root_st + s) % 12 for s in scale.semitones)
-    from gtr_scaler.domain.fretboard import _OPEN_SEMITONES
 
-    for c in project_scale(root, scale, fret_end=12):
-        pitch = (_OPEN_SEMITONES[c.string_idx] + c.fret) % 12
+    for c in projector.project(root, scale, fret_end=12):
+        pitch = (projector.open_semitones[c.string_idx] + c.fret) % 12
         assert pitch in scale_pitches
 
 
 def test_fret_range_start():
     # Only frets 5-9 should appear
-    scale = get_scale("pentatonic_minor")
-    cells = project_scale("A", scale, fret_start=5, fret_end=9)
+    scale = catalog.get("pentatonic_minor")
+    cells = projector.project("A", scale, fret_start=5, fret_end=9)
     assert all(5 <= c.fret <= 9 for c in cells)
     assert any(c.fret == 5 for c in cells)
 
 
 def test_fret_range_excludes_outside():
-    scale = get_scale("pentatonic_minor")
-    cells = project_scale("A", scale, fret_start=5, fret_end=9)
+    scale = catalog.get("pentatonic_minor")
+    cells = projector.project("A", scale, fret_start=5, fret_end=9)
     assert not any(c.fret < 5 or c.fret > 9 for c in cells)
 
 
@@ -96,8 +94,8 @@ def test_a_minor_pentatonic_box1_position():
 def test_a_minor_pentatonic_3_notes_per_string():
     # Traced manually: A minor pent (1 m3 P4 P5 m7), root A=9
     # scale_pitches = (9, 0, 2, 4, 7), open semitones = (4,9,2,7,11,4)
-    scale = get_scale("pentatonic_minor")
-    cells, fret_end = project_scale_n_notes("A", scale, notes_per_string=3)
+    scale = catalog.get("pentatonic_minor")
+    cells, fret_end = projector.project_n_notes("A", scale, notes_per_string=3)
 
     by_string: dict[int, list[int]] = {}
     for c in cells:
@@ -121,8 +119,8 @@ def test_a_minor_pentatonic_3_notes_per_string():
 def test_a_minor_pentatonic_3_notes_per_string_fret_start_5():
     # Same as above but shifted: fret_start=5 lands on A (root) on low E
     # String 0 starts at fret 5 and picks up the scale from there
-    scale = get_scale("pentatonic_minor")
-    cells, fret_end = project_scale_n_notes("A", scale, notes_per_string=3, fret_start=5)
+    scale = catalog.get("pentatonic_minor")
+    cells, fret_end = projector.project_n_notes("A", scale, notes_per_string=3, fret_start=5)
 
     by_string: dict[int, list[int]] = {}
     for c in cells:
@@ -146,30 +144,30 @@ def test_a_minor_pentatonic_3_notes_per_string_fret_start_5():
 def test_degree_fret_start_with_shift_no_shift_when_compact():
     # C major, degree 3, notes_per_string=3
     # base_fret = 0, shape stays compact (all strings start at 0 or 1)
-    scale = get_scale("major")
-    result = degree_fret_start_with_shift("C", scale, 3, 3)
+    scale = catalog.get("major")
+    result = projector.degree_fret_start_with_shift("C", scale, 3, 3)
     assert result == 0
 
 
 def test_degree_fret_start_with_shift_shifts_when_wide():
     # E major pentatonic, degree 1, notes_per_string=2
     # base_fret = 0, but string 1 starts at fret 11 (>= threshold 10)
-    scale = get_scale("pentatonic_major")
-    result = degree_fret_start_with_shift("E", scale, 1, 2)
+    scale = catalog.get("pentatonic_major")
+    result = projector.degree_fret_start_with_shift("E", scale, 1, 2)
     assert result == 12
 
 
 def test_degree_fret_start_with_shift_no_shift_at_intermediate_fret():
     # A minor pentatonic, degree 1, notes_per_string=2
     # base_fret = 5, shape from 5 is compact (all strings start at 5-8)
-    scale = get_scale("pentatonic_minor")
-    result = degree_fret_start_with_shift("A", scale, 1, 2)
+    scale = catalog.get("pentatonic_minor")
+    result = projector.degree_fret_start_with_shift("A", scale, 1, 2)
     assert result == 5
 
 
 def test_degree_fret_start_with_shift_no_shift_at_fret_1():
     # Find a scale/degree where base_fret == 1 (e.g., F on low E)
     # F major, degree 1: F is at fret 1 on low E
-    scale = get_scale("major")
-    result = degree_fret_start_with_shift("F", scale, 1, 3)
+    scale = catalog.get("major")
+    result = projector.degree_fret_start_with_shift("F", scale, 1, 3)
     assert result == 1  # should NOT shift because base != 0

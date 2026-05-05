@@ -1,10 +1,17 @@
-from gtr_scaler.domain.scales import get_scale
-from gtr_scaler.renderers.ascii import render
+from gtr_scaler.domain.fretboard import FretboardProjector
+from gtr_scaler.domain.notes import NoteService
+from gtr_scaler.domain.scales import ScaleCatalog
+from gtr_scaler.renderers.ascii import AsciiRenderer
+
+notes = NoteService()
+catalog = ScaleCatalog(notes)
+projector = FretboardProjector(notes)
+renderer = AsciiRenderer(projector, color=False)
 
 
 def test_render_a_minor_pentatonic_3nps_fret_start_5():
-    scale = get_scale("pentatonic_minor")
-    result = render("A", scale, fret_start=5, notes_per_string=3, color=False)
+    scale = catalog.get("pentatonic_minor")
+    result = renderer.render("A", scale, fret_start=5, notes_per_string=3)
     expected = "\n".join(
         [
             "A Pentatonic Minor  |  Standard tuning (E A D G B e)",
@@ -24,8 +31,10 @@ def test_render_a_minor_pentatonic_3nps_fret_start_5():
 
 
 def test_render_with_shape_label():
-    scale = get_scale("pentatonic_minor")
-    result = render("A", scale, fret_start=0, fret_end=12, color=False, shape_label="Shape 1")
+    scale = catalog.get("pentatonic_minor")
+    result = renderer.render(
+        "A", scale, fret_start=0, fret_end=12, title="A Pentatonic Minor \u2014 Shape 1"
+    )
     header = result.split("\n")[0]
     assert "Shape 1" in header
     assert "\u2014" in header
@@ -33,8 +42,8 @@ def test_render_with_shape_label():
 
 
 def test_render_without_shape_label():
-    scale = get_scale("pentatonic_minor")
-    result = render("A", scale, fret_start=0, fret_end=12, color=False)
+    scale = catalog.get("pentatonic_minor")
+    result = renderer.render("A", scale, fret_start=0, fret_end=12)
     header = result.split("\n")[0]
     assert "\u2014" not in header
     assert header == "A Pentatonic Minor  |  Standard tuning (E A D G B e)"
