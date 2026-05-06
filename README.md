@@ -10,7 +10,19 @@ A Python CLI tool to generate and export guitar scale diagrams as ASCII, SVG, or
 
 ## Installation
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/) (the fast Python package manager), then clone the repo and sync dependencies:
+### Install uv
+
+**Windows (PowerShell):**
+```powershell
+irm https://astral.sh/uv/install.ps1 | iex
+```
+
+**Linux / macOS:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### Clone and sync
 
 ```bash
 git clone <repository-url>
