@@ -259,3 +259,99 @@ def test_built_in_flask_404(client):
     assert resp.status_code == 404
     data = resp.get_json()
     assert "error" in data
+
+
+# ── HTML frontend (GET /) ────────────────────────────────────────────────────
+
+
+def test_index_no_params(client):
+    """GET / with no params returns 200 with form and scale dropdown."""
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "<form" in html
+    assert "pentatonic_minor" in html
+    assert "major" in html
+    assert "Generate Diagram" in html
+
+
+def test_index_ascii_preview(client):
+    """GET /?format=ascii&root=A&scale=pentatonic_minor shows ASCII art."""
+    resp = client.get("/?format=ascii&root=A&scale=pentatonic_minor")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "<pre" in html
+    assert "-R--" in html
+
+
+def test_index_svg_preview(client):
+    """GET /?format=svg&root=A&scale=pentatonic_minor shows inline SVG."""
+    resp = client.get("/?format=svg&root=A&scale=pentatonic_minor")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "<svg" in html
+
+
+@pytest.mark.skipif(not _cairo_available(), reason="Cairo native library not available")
+def test_index_pdf_download(client):
+    """GET /?format=pdf triggers a PDF download."""
+    resp = client.get("/?format=pdf&root=A&scale=pentatonic_minor")
+    assert resp.status_code == 200
+    assert resp.mimetype == "application/pdf"
+    assert "attachment" in resp.headers.get("Content-Disposition", "")
+    assert resp.data.startswith(b"%PDF")
+
+
+def test_index_error_renders_html(client):
+    """Invalid root renders HTML error alert instead of JSON."""
+    resp = client.get("/?root=Z")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "alert alert-danger" in html
+    assert "Unknown root" in html
+
+
+def test_index_unknown_scale_renders_html(client):
+    """Unknown scale renders HTML error alert."""
+    resp = client.get("/?scale=nonexistent")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "alert alert-danger" in html
+
+
+def test_index_mutual_exclusion_renders_html(client):
+    """Mutual exclusion of frets range and nps renders HTML error alert."""
+    resp = client.get("/?frets=5-9&nps=3")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "alert alert-danger" in html
+    assert "Cannot specify both" in html
+
+
+def test_index_all_degrees_svg(client):
+    """All-degrees SVG preview renders inline SVG."""
+    resp = client.get(
+        "/?format=svg&all_degrees=1&nps=3&root=A&scale=pentatonic_minor"
+    )
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "<svg" in html
+
+
+def test_index_form_repopulation(client):
+    """After error, form fields retain submitted values."""
+    resp = client.get("/?root=Z&scale=major&frets=5-9")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert 'value="Z"' in html
+    assert "selected" in html  # major scale should be selected
+    assert 'value="5-9"' in html
+
+
+def test_index_empty_nps(client):
+    """GET /?nps= (empty) should not crash."""
+    resp = client.get("/?nps=")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    # Should render successfully (empty nps treated as no nps)
+    assert "<pre" in html or "<svg" in html or "<form" in html

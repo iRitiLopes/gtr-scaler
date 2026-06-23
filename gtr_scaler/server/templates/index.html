@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Gtr Scaler{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Guitar Scale Diagram Generator</h1>
+
+<form method="GET" action="/" class="row g-3 mb-4">
+  <div class="col-md-3">
+    <label for="root" class="form-label">Root Note</label>
+    <input type="text" class="form-control" id="root" name="root"
+           value="{{ form.root if form.root is defined else 'A' }}" placeholder="A">
+  </div>
+  <div class="col-md-4">
+    <label for="scale" class="form-label">Scale</label>
+    <select class="form-select" id="scale" name="scale">
+      {% for key, display in scales %}
+      <option value="{{ key }}"
+        {% if form.scale is defined and form.scale == key %}selected{% endif %}>{{ display }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label for="frets" class="form-label">Frets</label>
+    <input type="text" class="form-control" id="frets" name="frets"
+           value="{{ form.frets if form.frets is defined else '12' }}" placeholder="12">
+  </div>
+  <div class="col-md-2">
+    <label for="nps" class="form-label">Notes/String</label>
+    <input type="number" class="form-control" id="nps" name="nps"
+           value="{{ form.nps if form.nps is defined else '' }}" min="1" placeholder="optional">
+  </div>
+  <div class="col-md-1">
+    <label for="mode" class="form-label">Mode</label>
+    <input type="number" class="form-control" id="mode" name="mode"
+           value="{{ form.mode if form.mode is defined else '1' }}" min="1">
+  </div>
+  <div class="col-md-2">
+    <label for="start_degree" class="form-label">Start Degree</label>
+    <input type="number" class="form-control" id="start_degree" name="start_degree"
+           value="{{ form.start_degree if form.start_degree is defined else '1' }}" min="1">
+  </div>
+  <div class="col-md-2 d-flex align-items-end">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="all_degrees" name="all_degrees" value="1"
+        {% if form.all_degrees is defined and form.all_degrees %}checked{% endif %}>
+      <label class="form-check-label" for="all_degrees">All Degrees</label>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Format</label>
+    <div class="d-flex gap-3">
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="format" id="format_ascii" value="ascii"
+          {% if form.format is not defined or form.format == 'ascii' %}checked{% endif %}>
+        <label class="form-check-label" for="format_ascii">ASCII</label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="format" id="format_svg" value="svg"
+          {% if form.format is defined and form.format == 'svg' %}checked{% endif %}>
+        <label class="form-check-label" for="format_svg">SVG</label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="format" id="format_pdf" value="pdf"
+          {% if form.format is defined and form.format == 'pdf' %}checked{% endif %}>
+        <label class="form-check-label" for="format_pdf">PDF</label>
+      </div>
+    </div>
+  </div>
+  <div class="col-12">
+    <button type="submit" class="btn btn-primary">Generate Diagram</button>
+  </div>
+</form>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+{% if result %}
+<h2>{{ diagram_title }}</h2>
+{% if result_type == 'ascii' %}
+<pre class="bg-light p-3 rounded" style="font-family: monospace; font-size: 0.85rem;">{{ ascii_output }}</pre>
+{% elif result_type == 'svg' %}
+{% for svg in svg_outputs %}
+<div class="mb-3 overflow-x-auto">{{ svg|safe }}</div>
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endblock %}

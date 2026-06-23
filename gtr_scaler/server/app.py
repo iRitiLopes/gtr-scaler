@@ -43,4 +43,8 @@ def create_app() -> Flask:
     register_error_handlers(app)
     register_routes(app)
 
+    from gtr_scaler.server.routes_html import pages_bp
+
+    app.register_blueprint(pages_bp)
+
     return app
