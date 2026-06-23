@@ -93,6 +93,10 @@ def index() -> str | Response:
     if format_type == "svg":
         return _render_svg(params, fret_start, title, scales, form, counts)
 
+    # ── HTML5 inline preview ─────────────────────────────────────────────────
+    if format_type == "html5":
+        return _render_html5(params, fret_start, title, scales, form, counts)
+
     # ── ASCII preview (default) ───────────────────────────────────────────────
     return _render_ascii(params, fret_start, title, scales, form, counts)
 
@@ -163,6 +167,55 @@ def _render_svg(
         result=True,
         result_type="svg",
         svg_outputs=svg_outputs,
+        diagram_title=title,
+        scale_interval_counts_json=json.dumps(counts),
+    )
+
+
+def _render_html5(
+    params: DiagramParams,
+    fret_start: int,
+    title: str,
+    scales: list[tuple[str, str]],
+    form: dict[str, str],
+    counts: dict[str, int],
+) -> str:
+    """Render the HTML5 preview template."""
+    html5_renderer = current_app.config["HTML5_RENDERER"]
+
+    if params.all_degrees:
+        specs, titles = _build_all_degree_specs(params, fret_start)
+        html_parts: list[str] = []
+        for spec, spec_title in zip(specs, titles):
+            html_parts.append(
+                html5_renderer.render(
+                    spec.root,
+                    spec.scale,
+                    spec.fret_start,
+                    spec.fret_end,
+                    notes_per_string=spec.notes_per_string,
+                    title=spec_title,
+                )
+            )
+        html_output = "\n".join(html_parts)
+    else:
+        fret_start, fret_end = _resolve_fret_range(params, fret_start)
+        html_output = html5_renderer.render(
+            params.effective_root,
+            params.effective_scale,
+            fret_start,
+            fret_end,
+            notes_per_string=params.nps,
+            title=title,
+        )
+
+    return render_template(
+        "index.html",
+        scales=scales,
+        form=form,
+        result=True,
+        result_type="html5",
+        html_output=html_output,
         diagram_title=title,
         scale_interval_counts_json=json.dumps(counts),
     )

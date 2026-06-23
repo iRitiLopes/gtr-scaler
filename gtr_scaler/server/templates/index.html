@@ -70,6 +70,11 @@
           {% if form.format is defined and form.format == 'pdf' %}checked{% endif %}>
         <label class="form-check-label" for="format_pdf">PDF</label>
       </div>
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="format" id="format_html5" value="html5"
+          {% if form.format is defined and form.format == 'html5' %}checked{% endif %}>
+        <label class="form-check-label" for="format_html5">HTML5</label>
+      </div>
     </div>
   </div>
   <div class="col-12">
@@ -89,6 +94,8 @@
 {% for svg in svg_outputs %}
 <div class="mb-3 overflow-x-auto">{{ svg|safe }}</div>
 {% endfor %}
+{% elif result_type == 'html5' %}
+<div class="mb-3">{{ html_output|safe }}</div>
 {% endif %}
 {% endif %}
 {% endblock %}
@@ -110,6 +117,7 @@
   var elFmtAscii     = document.getElementById("format_ascii");
   var elFmtSvg       = document.getElementById("format_svg");
   var elFmtPdf       = document.getElementById("format_pdf");
+  var elFmtHtml5     = document.getElementById("format_html5");
   var elScale        = document.getElementById("scale");
 
   var helpFrets      = document.getElementById("frets-help");
@@ -269,6 +277,7 @@
   elFmtAscii.addEventListener("change", evaluate);
   elFmtSvg.addEventListener("change", evaluate);
   elFmtPdf.addEventListener("change", evaluate);
+  elFmtHtml5.addEventListener("change", evaluate);
 
   // Initial evaluation on page load
   evaluate();

@@ -9,6 +9,7 @@ from gtr_scaler.domain.notes import NoteService
 from gtr_scaler.domain.scales import ScaleCatalog
 from gtr_scaler.exporters.pdf import MultiPagePdfBuilder, PdfConverter
 from gtr_scaler.renderers.ascii import AsciiRenderer
+from gtr_scaler.renderers.html5 import Html5Renderer
 from gtr_scaler.renderers.multi import MultiDiagramRenderer
 from gtr_scaler.renderers.svg import SvgRenderer
 from gtr_scaler.server.error_handlers import register_error_handlers
@@ -26,6 +27,7 @@ def create_app() -> Flask:
     ascii_renderer = AsciiRenderer(projector, color=False)
     svg_renderer = SvgRenderer(projector)
     multi_renderer = MultiDiagramRenderer(svg_renderer)
+    html5_renderer = Html5Renderer(projector)
     pdf_converter = PdfConverter()
     pdf_builder = MultiPagePdfBuilder(svg_renderer, multi_renderer, pdf_converter)
 
@@ -37,6 +39,7 @@ def create_app() -> Flask:
     app.config["ASCII_RENDERER"] = ascii_renderer
     app.config["SVG_RENDERER"] = svg_renderer
     app.config["MULTI_RENDERER"] = multi_renderer
+    app.config["HTML5_RENDERER"] = html5_renderer
     app.config["PDF_CONVERTER"] = pdf_converter
     app.config["PDF_BUILDER"] = pdf_builder
 

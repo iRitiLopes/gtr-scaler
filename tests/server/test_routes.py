@@ -393,3 +393,61 @@ def test_index_has_helper_divs(client):
     assert 'id="mode-help"' in html
     assert 'id="start-degree-help"' in html
     assert 'id="all-degrees-help"' in html
+
+
+# ── HTML5 preview (GET /) ────────────────────────────────────────────────────
+
+
+def test_index_html5_preview(client):
+    """GET /?format=html5&root=A&scale=pentatonic_minor shows HTML5 diagram."""
+    resp = client.get("/?format=html5&root=A&scale=pentatonic_minor")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert ".gtr-diagram" in html
+    assert "<style>" in html
+    assert "<script>" in html
+
+
+def test_index_html5_with_nps(client):
+    """GET /?format=html5&nps=3 shows markers."""
+    resp = client.get("/?format=html5&root=A&scale=pentatonic_minor&nps=3")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "gtr-marker" in html
+
+
+def test_index_html5_all_degrees(client):
+    """GET /?format=html5&all_degrees=1&nps=3 shows multiple diagrams."""
+    resp = client.get(
+        "/?format=html5&all_degrees=1&nps=3&root=A&scale=pentatonic_minor"
+    )
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    # Should have multiple gtr-diagram divs (5 for pentatonic)
+    assert html.count("gtr-diagram") >= 5
+
+
+def test_index_html5_form_repopulation(client):
+    """After render, form retains format=html5."""
+    resp = client.get("/?format=html5&root=A&scale=pentatonic_minor")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert 'value="html5"' in html
+    assert "checked" in html
+
+
+def test_index_html5_error(client):
+    """Invalid root renders HTML error page."""
+    resp = client.get("/?format=html5&root=Z")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "alert alert-danger" in html
+    assert "Unknown root" in html
+
+
+def test_index_html5_radio_present(client):
+    """Page contains format_html5 radio input."""
+    resp = client.get("/")
+    html = resp.data.decode("utf-8")
+    assert 'id="format_html5"' in html
+    assert 'value="html5"' in html
