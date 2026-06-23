@@ -5,7 +5,7 @@
 {% block content %}
 <h1 class="mb-4">Guitar Scale Diagram Generator</h1>
 
-<form method="GET" action="/" class="row g-3 mb-4">
+<form method="GET" action="/" class="row g-3 mb-4" id="diagram-form">
   <div class="col-md-3">
     <label for="root" class="form-label">Root Note</label>
     <input type="text" class="form-control" id="root" name="root"
@@ -24,21 +24,25 @@
     <label for="frets" class="form-label">Frets</label>
     <input type="text" class="form-control" id="frets" name="frets"
            value="{{ form.frets if form.frets is defined else '12' }}" placeholder="12">
+    <div id="frets-help" class="form-text text-muted" style="display:none;"></div>
   </div>
   <div class="col-md-2">
     <label for="nps" class="form-label">Notes/String</label>
     <input type="number" class="form-control" id="nps" name="nps"
            value="{{ form.nps if form.nps is defined else '' }}" min="1" placeholder="optional">
+    <div id="nps-help" class="form-text text-muted" style="display:none;"></div>
   </div>
   <div class="col-md-1">
     <label for="mode" class="form-label">Mode</label>
     <input type="number" class="form-control" id="mode" name="mode"
            value="{{ form.mode if form.mode is defined else '1' }}" min="1">
+    <div id="mode-help" class="form-text text-muted"></div>
   </div>
   <div class="col-md-2">
     <label for="start_degree" class="form-label">Start Degree</label>
     <input type="number" class="form-control" id="start_degree" name="start_degree"
            value="{{ form.start_degree if form.start_degree is defined else '1' }}" min="1">
+    <div id="start-degree-help" class="form-text text-muted"></div>
   </div>
   <div class="col-md-2 d-flex align-items-end">
     <div class="form-check">
@@ -46,6 +50,7 @@
         {% if form.all_degrees is defined and form.all_degrees %}checked{% endif %}>
       <label class="form-check-label" for="all_degrees">All Degrees</label>
     </div>
+    <div id="all-degrees-help" class="form-text text-muted ms-2" style="display:none;"></div>
   </div>
   <div class="col-md-4">
     <label class="form-label">Format</label>
@@ -86,4 +91,187 @@
 {% endfor %}
 {% endif %}
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  "use strict";
+
+  // Scale interval counts injected by the backend
+  var SCALE_COUNTS = {{ scale_interval_counts_json | default('{}') | safe }};
+
+  // Element references
+  var elFrets        = document.getElementById("frets");
+  var elNps          = document.getElementById("nps");
+  var elMode         = document.getElementById("mode");
+  var elStartDeg     = document.getElementById("start_degree");
+  var elAllDegrees   = document.getElementById("all_degrees");
+  var elFmtAscii     = document.getElementById("format_ascii");
+  var elFmtSvg       = document.getElementById("format_svg");
+  var elFmtPdf       = document.getElementById("format_pdf");
+  var elScale        = document.getElementById("scale");
+
+  var helpFrets      = document.getElementById("frets-help");
+  var helpNps        = document.getElementById("nps-help");
+  var helpMode       = document.getElementById("mode-help");
+  var helpStartDeg   = document.getElementById("start-degree-help");
+  var helpAllDegrees = document.getElementById("all-degrees-help");
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  function isFretRange(val) {
+    return val && val.indexOf("-") !== -1;
+  }
+
+  function hasNpsValue() {
+    return elNps.value !== "" && parseInt(elNps.value, 10) >= 1;
+  }
+
+  function showHelp(el, msg) {
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = msg ? "" : "none";
+  }
+
+  function enableField(el) {
+    el.disabled = false;
+  }
+
+  function disableField(el) {
+    el.disabled = true;
+  }
+
+  // ── Constraint 1: Mutual exclusion – NPS ↔ Fret range ─────────────────────
+
+  function applyMutualExclusion() {
+    var fretVal = elFrets.value.trim();
+    var fretIsRange = isFretRange(fretVal);
+    var npsActive  = hasNpsValue();
+
+    if (fretIsRange && !npsActive) {
+      // Fret range locks out NPS
+      disableField(elNps);
+      showHelp(helpNps, "Notes/String disabled because a fret range is set");
+      showHelp(helpFrets, "");
+    } else if (npsActive && !fretIsRange) {
+      // NPS locks out fret range input
+      disableField(elFrets);
+      showHelp(helpFrets, "Frets disabled because Notes/String is active");
+      showHelp(helpNps, "");
+    } else {
+      enableField(elNps);
+      enableField(elFrets);
+      showHelp(helpFrets, "");
+      showHelp(helpNps, "");
+    }
+  }
+
+  // ── Constraint 2: All-Degrees ─────────────────────────────────────────────
+
+  function applyAllDegrees() {
+    var checked = elAllDegrees.checked;
+
+    if (checked) {
+      // Force start_degree to 1 and disable
+      elStartDeg.value = "1";
+      disableField(elStartDeg);
+      showHelp(helpStartDeg, "Start Degree locked to 1 for All Degrees");
+
+      // NPS placeholder / bounds
+      if (elNps.value === "") {
+        elNps.placeholder = "2\u20134 required";
+      }
+      elNps.min = "2";
+      elNps.max = "4";
+
+      // All-degrees helper text
+      showHelp(helpAllDegrees, "Requires Notes/String 2\u20134; Start Degree = 1");
+
+      // Disable ASCII radio; if ASCII was selected, switch to SVG
+      disableField(elFmtAscii);
+      if (elFmtAscii.checked) {
+        elFmtSvg.checked = true;
+      }
+    } else {
+      enableField(elStartDeg);
+      showHelp(helpStartDeg, getScaleBoundsText());
+
+      elNps.placeholder = "optional";
+      elNps.min = "1";
+      elNps.removeAttribute("max");
+
+      showHelp(helpAllDegrees, "");
+
+      enableField(elFmtAscii);
+    }
+  }
+
+  // ── Constraint 3: Scale-aware bounds for mode & start_degree ──────────────
+
+  function getScaleBoundsText() {
+    var key = elScale.value;
+    var count = SCALE_COUNTS[key];
+    if (!count) return "";
+    return "Range: 1\u2013" + count;
+  }
+
+  function applyScaleBounds() {
+    var key = elScale.value;
+    var count = SCALE_COUNTS[key];
+    if (!count) return;
+
+    elMode.max = count;
+    elMode.title = "1\u2013" + count;
+
+    elStartDeg.max = count;
+    elStartDeg.title = "1\u2013" + count;
+
+    showHelp(helpMode, "Range: 1\u2013" + count);
+
+    // Only update start_degree help if all_degrees is NOT checked (which overrides it)
+    if (!elAllDegrees.checked) {
+      showHelp(helpStartDeg, "Range: 1\u2013" + count);
+    }
+  }
+
+  // ── Constraint 4: Format ↔ All-Degrees interaction ────────────────────────
+
+  function applyFormatConstraints() {
+    // If format is ASCII and all_degrees is checked, force uncheck all_degrees
+    if (elFmtAscii.checked && elAllDegrees.checked) {
+      elAllDegrees.checked = false;
+      applyAllDegrees();  // re-apply to undo all-degrees constraints
+    }
+    // Disable all_degrees checkbox when ASCII is selected
+    if (elFmtAscii.checked) {
+      disableField(elAllDegrees);
+    } else {
+      enableField(elAllDegrees);
+    }
+  }
+
+  // ── Master re-evaluation ──────────────────────────────────────────────────
+
+  function evaluate() {
+    applyScaleBounds();
+    applyAllDegrees();
+    applyFormatConstraints();
+    applyMutualExclusion();
+  }
+
+  // ── Event listeners ───────────────────────────────────────────────────────
+
+  elFrets.addEventListener("input", evaluate);
+  elNps.addEventListener("input", evaluate);
+  elScale.addEventListener("change", evaluate);
+  elAllDegrees.addEventListener("change", evaluate);
+  elFmtAscii.addEventListener("change", evaluate);
+  elFmtSvg.addEventListener("change", evaluate);
+  elFmtPdf.addEventListener("change", evaluate);
+
+  // Initial evaluation on page load
+  evaluate();
+})();
+</script>
 {% endblock %}

@@ -357,3 +357,39 @@ def test_index_empty_nps(client):
     html = resp.data.decode("utf-8")
     # Should render successfully (empty nps treated as no nps)
     assert "<pre" in html or "<svg" in html or "<form" in html
+
+
+# ── Scale interval counts in HTML ─────────────────────────────────────────────
+
+
+def test_index_includes_scale_interval_counts(client):
+    """The HTML page embeds a JS object mapping scale keys to interval counts."""
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    # The JSON object should be embedded in a <script> tag
+    assert "SCALE_COUNTS" in html
+    # Spot-check known scales
+    assert '"pentatonic_minor": 5' in html
+    assert '"major": 7' in html
+    assert '"blues": 6' in html
+
+
+def test_index_has_constraint_js(client):
+    """The HTML page includes the client-side constraint JavaScript."""
+    resp = client.get("/")
+    html = resp.data.decode("utf-8")
+    assert "applyMutualExclusion" in html
+    assert "applyAllDegrees" in html
+    assert "applyScaleBounds" in html
+
+
+def test_index_has_helper_divs(client):
+    """The HTML page includes helper text divs for dynamic constraints."""
+    resp = client.get("/")
+    html = resp.data.decode("utf-8")
+    assert 'id="frets-help"' in html
+    assert 'id="nps-help"' in html
+    assert 'id="mode-help"' in html
+    assert 'id="start-degree-help"' in html
+    assert 'id="all-degrees-help"' in html

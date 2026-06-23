@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 
 from flask import Blueprint, Response, current_app, render_template, request
@@ -25,6 +26,12 @@ def _get_scales() -> list[tuple[str, str]]:
     return [(name, catalog.get(name).display_name) for name in SCALE_PATTERNS]
 
 
+def _get_scale_interval_counts() -> dict[str, int]:
+    """Return a mapping of scale key → number of intervals for JS constraint logic."""
+    catalog = current_app.config["SCALE_CATALOG"]
+    return {name: len(catalog.get(name).intervals) for name in SCALE_PATTERNS}
+
+
 def _build_form_data(args: dict[str, str]) -> dict[str, str]:
     """Build a dict of form values for template repopulation."""
     return dict(args)
@@ -33,18 +40,28 @@ def _build_form_data(args: dict[str, str]) -> dict[str, str]:
 def _render_error(error: str, form: dict[str, str]) -> tuple[str, int]:
     """Render the index page with an error alert."""
     scales = _get_scales()
-    return render_template("index.html", scales=scales, form=form, error=error), 200
+    counts = _get_scale_interval_counts()
+    return render_template(
+        "index.html",
+        scales=scales,
+        form=form,
+        error=error,
+        scale_interval_counts_json=json.dumps(counts),
+    ), 200
 
 
 @pages_bp.get("/")
 def index() -> str | Response:
     """Render the main page with form and optional diagram output."""
     scales = _get_scales()
+    counts = _get_scale_interval_counts()
 
     # If no query params (or only empty ones), render empty form
     has_params = any(v != "" for v in request.args.values())
     if not has_params:
-        return render_template("index.html", scales=scales, form={})
+        return render_template(
+            "index.html", scales=scales, form={}, scale_interval_counts_json=json.dumps(counts)
+        )
 
     # Filter out empty strings to avoid int("") crashes
     args = {k: v for k, v in request.args.items() if v != ""}
@@ -71,10 +88,10 @@ def index() -> str | Response:
 
     # ── SVG inline preview ────────────────────────────────────────────────────
     if format_type == "svg":
-        return _render_svg(params, fret_start, title, scales, form)
+        return _render_svg(params, fret_start, title, scales, form, counts)
 
     # ── ASCII preview (default) ───────────────────────────────────────────────
-    return _render_ascii(params, fret_start, title, scales, form)
+    return _render_ascii(params, fret_start, title, scales, form, counts)
 
 
 def _render_pdf(params: DiagramParams, fret_start: int, title: str) -> Response:
@@ -112,6 +129,7 @@ def _render_svg(
     title: str,
     scales: list[tuple[str, str]],
     form: dict[str, str],
+    counts: dict[str, int],
 ) -> str:
     """Render the SVG preview template."""
     svg_renderer = current_app.config["SVG_RENDERER"]
@@ -143,6 +161,7 @@ def _render_svg(
         result_type="svg",
         svg_outputs=svg_outputs,
         diagram_title=title,
+        scale_interval_counts_json=json.dumps(counts),
     )
 
 
@@ -152,6 +171,7 @@ def _render_ascii(
     title: str,
     scales: list[tuple[str, str]],
     form: dict[str, str],
+    counts: dict[str, int],
 ) -> str:
     """Render the ASCII preview template."""
     ascii_renderer = current_app.config["ASCII_RENDERER"]
@@ -174,6 +194,7 @@ def _render_ascii(
         result_type="ascii",
         ascii_output=ascii_text,
         diagram_title=title,
+        scale_interval_counts_json=json.dumps(counts),
     )
 
 
