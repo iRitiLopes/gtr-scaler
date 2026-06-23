@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from gtr_scaler.server.app import create_app
@@ -344,7 +346,7 @@ def test_index_form_repopulation(client):
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
     assert 'value="Z"' in html
-    assert "selected" in html  # major scale should be selected
+    assert re.search(r'value="major"\s+selected', html)  # major scale should be selected
     assert 'value="5-9"' in html
 
 

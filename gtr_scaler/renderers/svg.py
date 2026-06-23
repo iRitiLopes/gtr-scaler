@@ -11,6 +11,7 @@ for _name in ("Mapping", "MutableMapping", "Sequence", "Hashable"):
 
 import re
 from io import StringIO
+from xml.sax.saxutils import escape
 
 from fretboard.fretboard import Fretboard as _Fretboard
 
@@ -159,11 +160,12 @@ def _wrap_with_title(
     )
 
     # Insert title text after <svg ...>
+    escaped_title = escape(title)
     text_elem = (
         f'<text x="{w / 2:.0f}" y="{title_height / 2 + 7:.0f}" '
         f'text-anchor="middle" font-family="sans-serif" '
         f'font-size="16" font-weight="bold" fill="#333">'
-        f"{title}</text>\n"
+        f"{escaped_title}</text>\n"
     )
     svg_tag_start = svg.index("<svg")
     svg_tag_end = svg.index(">", svg_tag_start) + 1

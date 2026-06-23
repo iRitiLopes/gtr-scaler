@@ -9,7 +9,12 @@ from werkzeug.exceptions import HTTPException
 
 from gtr_scaler.domain.scales import SCALE_PATTERNS
 from gtr_scaler.renderers.multi import DiagramSpec
-from gtr_scaler.server.validation import _parse_frets, compute_fret_start, parse_diagram_params
+from gtr_scaler.server.validation import (
+    DiagramParams,
+    _parse_frets,
+    compute_fret_start,
+    parse_diagram_params,
+)
 
 pages_bp = Blueprint("pages", __name__)
 
@@ -72,7 +77,7 @@ def index() -> str | Response:
     return _render_ascii(params, fret_start, title, scales, form)
 
 
-def _render_pdf(params: object, fret_start: int, title: str) -> Response:
+def _render_pdf(params: DiagramParams, fret_start: int, title: str) -> Response:
     """Generate and return a PDF download response."""
     svg_renderer = current_app.config["SVG_RENDERER"]
     pdf_converter = current_app.config["PDF_CONVERTER"]
@@ -102,7 +107,7 @@ def _render_pdf(params: object, fret_start: int, title: str) -> Response:
 
 
 def _render_svg(
-    params: object,
+    params: DiagramParams,
     fret_start: int,
     title: str,
     scales: list[tuple[str, str]],
@@ -142,7 +147,7 @@ def _render_svg(
 
 
 def _render_ascii(
-    params: object,
+    params: DiagramParams,
     fret_start: int,
     title: str,
     scales: list[tuple[str, str]],
@@ -172,7 +177,7 @@ def _render_ascii(
     )
 
 
-def _resolve_fret_range(params: object, fret_start: int) -> tuple[int, int]:
+def _resolve_fret_range(params: DiagramParams, fret_start: int) -> tuple[int, int]:
     """Return (fret_start, fret_end) based on params.nps or params.frets."""
     projector = current_app.config["PROJECTOR"]
 
@@ -191,7 +196,7 @@ def _resolve_fret_range(params: object, fret_start: int) -> tuple[int, int]:
 
 
 def _build_all_degree_specs(
-    params: object, fret_start: int
+    params: DiagramParams, fret_start: int
 ) -> tuple[list[DiagramSpec], list[str]]:
     """Build diagram specs and titles for all-degrees rendering."""
     projector = current_app.config["PROJECTOR"]
