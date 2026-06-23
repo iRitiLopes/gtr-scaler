@@ -207,6 +207,7 @@ class Html5Renderer:
         return """<script>
 (function() {
   "use strict";
+  if (document.getElementById("gtr-tooltip")) return;
   var tooltip = null;
 
   function getTooltip() {
