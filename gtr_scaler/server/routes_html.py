@@ -82,6 +82,9 @@ def index() -> str | Response:
     format_type = request.args.get("format", "ascii")
     title = f"{params.effective_root} {params.effective_scale.display_name}"
 
+    if params.all_degrees and format_type == "ascii":
+        return _render_error("all_degrees is not supported for ASCII preview", form)
+
     # ── PDF download ──────────────────────────────────────────────────────────
     if format_type == "pdf":
         return _render_pdf(params, fret_start, title)
