@@ -1,0 +1,261 @@
+"""Tests for the Flask web server routes."""
+
+from __future__ import annotations
+
+import pytest
+
+from gtr_scaler.server.app import create_app
+
+
+@pytest.fixture()
+def client():
+    app = create_app()
+    app.config["TESTING"] = True
+    with app.test_client() as c:
+        yield c
+
+
+def _cairo_available() -> bool:
+    """Check if cairosvg can actually be imported (native lib present)."""
+    try:
+        import cairosvg  # noqa: F401
+
+        return True
+    except (ImportError, OSError):
+        return False
+
+
+# ── /scales ───────────────────────────────────────────────────────────────────
+
+
+def test_list_scales(client):
+    resp = client.get("/scales")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert isinstance(data, list)
+    assert len(data) > 0
+    keys = [s["key"] for s in data]
+    assert "pentatonic_minor" in keys
+    assert "major" in keys
+    # Each entry has key and display
+    for entry in data:
+        assert "key" in entry
+        assert "display" in entry
+
+
+# ── /scales/<name> ────────────────────────────────────────────────────────────
+
+
+def test_get_scale_data_default(client):
+    resp = client.get("/scales/pentatonic_minor")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["root"] == "A"
+    assert data["scale"]["name"] == "pentatonic_minor"
+    assert data["scale"]["display_name"] == "Pentatonic Minor"
+    assert data["fret_start"] == 0
+    assert data["fret_end"] == 12
+    assert data["mode"] == 1
+    assert data["start_degree"] == 1
+    assert data["notes_per_string"] is None
+    assert isinstance(data["cells"], list)
+    assert len(data["cells"]) > 0
+    assert isinstance(data["interval_labels"], dict)
+    # Every cell has expected keys
+    for cell in data["cells"]:
+        assert "string_idx" in cell
+        assert "fret" in cell
+        assert "interval" in cell
+        assert "label" in cell
+        assert "is_root" in cell
+
+
+def test_get_scale_data_with_root(client):
+    resp = client.get("/scales/major?root=C")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["root"] == "C"
+
+
+def test_get_scale_data_with_mode(client):
+    # C major mode 6 = A Aeolian
+    resp = client.get("/scales/major?root=C&mode=6")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["root"] == "A"
+    assert "Aeolian" in data["scale"]["display_name"]
+    assert data["mode"] == 6
+
+
+def test_get_scale_data_with_nps(client):
+    resp = client.get("/scales/pentatonic_minor?nps=3")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["notes_per_string"] == 3
+    # fret_end should be > 12 for 3-note patterns typically
+    assert data["fret_end"] >= 0
+
+
+def test_get_scale_data_invalid_root(client):
+    resp = client.get("/scales/major?root=Z")
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert "error" in data
+
+
+def test_get_scale_data_unknown_scale(client):
+    resp = client.get("/scales/does_not_exist")
+    assert resp.status_code == 404
+    data = resp.get_json()
+    assert "error" in data
+
+
+def test_get_scale_data_invalid_mode(client):
+    resp = client.get("/scales/major?mode=99")
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert "error" in data
+
+
+def test_get_scale_data_bad_frets(client):
+    resp = client.get("/scales/major?frets=abc")
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert "error" in data
+
+
+# ── /export/ascii ─────────────────────────────────────────────────────────────
+
+
+def test_export_ascii(client):
+    resp = client.get("/export/ascii?root=A&scale=pentatonic_minor")
+    assert resp.status_code == 200
+    assert resp.content_type.startswith("text/plain")
+    text = resp.data.decode("utf-8")
+    assert "-R--" in text
+    assert "Pentatonic Minor" in text
+
+
+def test_export_ascii_with_nps(client):
+    resp = client.get("/export/ascii?root=A&scale=pentatonic_minor&nps=3")
+    assert resp.status_code == 200
+    text = resp.data.decode("utf-8")
+    assert "-R--" in text
+
+
+# ── /export/svg ───────────────────────────────────────────────────────────────
+
+
+def test_export_svg(client):
+    resp = client.get("/export/svg?root=A&scale=pentatonic_minor")
+    assert resp.status_code == 200
+    assert resp.content_type.startswith("image/svg+xml")
+    svg = resp.data.decode("utf-8")
+    assert "<svg" in svg
+    assert "</svg>" in svg
+
+
+def test_export_svg_all_degrees(client):
+    resp = client.get("/export/svg?root=A&scale=pentatonic_minor&all_degrees=1&nps=3")
+    assert resp.status_code == 200
+    svg = resp.data.decode("utf-8")
+    assert "<svg" in svg
+    # Should contain shape titles for all 5 pentatonic degrees
+    for deg in range(1, 6):
+        assert f"Shape {deg}" in svg
+
+
+def test_export_svg_all_degrees_major(client):
+    resp = client.get("/export/svg?root=C&scale=major&all_degrees=1&nps=3")
+    assert resp.status_code == 200
+    svg = resp.data.decode("utf-8")
+    for deg in range(1, 8):
+        assert f"Shape {deg}" in svg
+
+
+def test_export_svg_with_mode(client):
+    resp = client.get("/export/svg?root=C&scale=major&mode=6")
+    assert resp.status_code == 200
+    svg = resp.data.decode("utf-8")
+    assert "Aeolian" in svg
+
+
+# ── /export/pdf ───────────────────────────────────────────────────────────────
+
+
+@pytest.mark.skipif(not _cairo_available(), reason="Cairo native library not available")
+def test_export_pdf(client):
+    resp = client.get("/export/pdf?root=A&scale=pentatonic_minor")
+    assert resp.status_code == 200
+    assert resp.content_type.startswith("application/pdf")
+    assert resp.data.startswith(b"%PDF")
+
+
+@pytest.mark.skipif(not _cairo_available(), reason="Cairo native library not available")
+def test_export_pdf_all_degrees(client):
+    resp = client.get("/export/pdf?root=A&scale=pentatonic_minor&all_degrees=1&nps=3")
+    assert resp.status_code == 200
+    assert resp.data.startswith(b"%PDF")
+
+
+# ── Validation edge cases ─────────────────────────────────────────────────────
+
+
+def test_mutual_exclusion_frets_range_and_nps(client):
+    resp = client.get("/scales/major?frets=5-9&nps=3")
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert "Cannot specify both" in data["error"]
+
+
+def test_all_degrees_requires_nps(client):
+    resp = client.get("/export/svg?root=A&scale=pentatonic_minor&all_degrees=1")
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert "nps" in data["error"].lower() or "2 and 4" in data["error"]
+
+
+def test_all_degrees_nps_out_of_range(client):
+    resp = client.get("/export/svg?root=A&scale=pentatonic_minor&all_degrees=1&nps=5")
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert "between 2 and 4" in data["error"]
+
+
+def test_all_degrees_no_start_degree(client):
+    resp = client.get(
+        "/export/svg?root=A&scale=pentatonic_minor&all_degrees=1&nps=3&start_degree=2"
+    )
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert "start_degree" in data["error"].lower() or "cannot" in data["error"].lower()
+
+
+def test_invalid_nps_value(client):
+    resp = client.get("/scales/major?nps=abc")
+    assert resp.status_code == 400
+
+
+def test_nps_zero(client):
+    resp = client.get("/scales/major?nps=0")
+    assert resp.status_code == 400
+
+
+def test_negative_frets(client):
+    resp = client.get("/scales/major?frets=-1")
+    assert resp.status_code == 400
+
+
+def test_ascii_all_degrees_not_allowed(client):
+    resp = client.get("/export/ascii?all_degrees=1&nps=3")
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert "not supported" in data["error"].lower()
+
+
+def test_built_in_flask_404(client):
+    """A completely unknown path returns 404 JSON."""
+    resp = client.get("/nonexistent")
+    assert resp.status_code == 404
+    data = resp.get_json()
+    assert "error" in data

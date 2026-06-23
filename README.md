@@ -65,6 +65,12 @@ uv run python -m gtr_scaler A pentatonic_minor --output scale.svg
 
 # Export to PDF
 uv run python -m gtr_scaler A pentatonic_minor --output scale.pdf
+
+# Export all shapes to PDF
+uv run python -m gtr_scaler F melodic_minor --notes 3 --all-degrees --output F_mel_min.pdf
+
+# Export all shapes 4 per strings to PDF
+uv run python -m gtr_scaler F altered --notes 4 --all-degrees --output F_alt_all_4str.pdf
 ```
 
 ## Development
