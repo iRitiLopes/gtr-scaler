@@ -6,11 +6,12 @@
 It targets two output formats (SVG/PDF and ASCII/text) and will eventually expose a local Flask HTTP
 server so outputs can be previewed and downloaded from a browser.
 
-**Current state:** ASCII viewer, SVG renderer, and PDF export are all working.
-All diagrams include titles. The `--all-degrees` flag generates one diagram per
-scale degree (CAGED-style shapes). Multi-page PDFs are supported via `pypdf`
-with a maximum of 3 diagrams per page.
-Flask server is not yet built.
+**Current state:** ASCII viewer, SVG renderer, PDF export, and a Flask web server
+are all working. All diagrams include titles. The `--all-degrees` flag generates
+one diagram per scale degree (CAGED-style shapes). Multi-page PDFs are supported
+via `pypdf` with a maximum of 3 diagrams per page.
+The Flask server provides an HTML frontend with interactive root-note and scale
+selectors, live diagram preview, and export endpoints for ASCII, SVG, and PDF.
 
 ---
 
@@ -279,7 +280,7 @@ for _name in ("Mapping", "MutableMapping", "Sequence", "Hashable"):
 |--------------|---------------------|------------------------------------------------|
 | Language     | Python 3.11+        | Use `match`, walrus, `TypeAlias`, etc.         |
 | CLI          | `argparse` (stdlib) | Entry point is `gtr_scaler/__main__.py`        |
-| Web server   | Flask               | Not yet built — future layer                   |
+| Web server   | Flask               | HTML frontend + JSON API + export endpoints    |
 | SVG          | `fretboard` + `svgwrite` | Diagram rendering                         |
 | PDF          | `cairosvg`          | SVG → PDF conversion                           |
 | PDF merging  | `pypdf`             | Multi-page PDF assembly for `--all-degrees`    |
@@ -300,9 +301,15 @@ gtr_scaler/
 ├── renderers/       # Output generation — depends on domain only
 │   ├── ascii.py     # Terminal renderer (ANSI color, degree labels)
 │   └── svg.py       # SVG/PDF renderer via fretboard + cairosvg
-├── server/          # Flask app — not yet built
-│   ├── app.py
-│   └── routes.py
+├── server/          # Flask app — HTML frontend + JSON API + export endpoints
+│   ├── app.py           # Application factory
+│   ├── run.py           # Standalone server runner (LAN-accessible)
+│   ├── routes.py        # JSON API endpoints
+│   ├── routes_html.py   # HTML frontend routes
+│   ├── error_handlers.py
+│   ├── validation.py
+│   ├── serialization.py
+│   └── templates/       # Jinja2 templates (base.html, index.html)
 └── __main__.py      # argparse CLI entry point
 ```
 
@@ -382,23 +389,49 @@ python -m gtr_scaler C major --all-degrees --notes 3 --output shapes.pdf  # pagi
 
 ---
 
-## Flask Server (future)
+## Flask Server
 
-- Base URL: `http://localhost:5000`
-- Routes return either JSON (for data) or a binary file response (for PDF/ASCII download).
-- Use `Flask` blueprints if routes grow beyond ~5 endpoints.
-- No template rendering — API server only.
-- Error responses: `{"error": "<message>"}` with appropriate HTTP status codes.
+A Flask web server is built and running. It exposes both an HTML frontend and
+a JSON API for programmatic access.
 
-### Planned endpoints
+### Running the server
 
-- `GET /scales` — list available scale names
-- `GET /scales/<name>?root=<note>&frets=<range>&mode=<n>` — fretboard data as JSON
-- `GET /export/ascii?...` — return plain text
-- `GET /export/svg?...` — return SVG file
-- `GET /export/pdf?...` — return PDF file
+```bash
+# Default: accessible from any device on your local network
+gtr-scaler-server
 
-Query parameters:
+# Custom port
+gtr-scaler-server --port 8080
+
+# Localhost only
+gtr-scaler-server --host 127.0.0.1
+
+# Debug mode with auto-reload
+gtr-scaler-server --debug
+```
+
+### HTML Frontend (`GET /`)
+
+The root page provides an interactive web UI:
+- **Root note selector**: 12 circular buttons (C, C#, D, D#, E, F, F#, G, G#, A, A#, B)
+- **Scale selector**: 15 colored pill buttons — one per built-in scale. Each scale has a
+distinct color (e.g. Pentatonic Minor = red, Major = blue, Blues = dark slate).
+- Clicking a button selects it and deselects the previous one.
+- Keyboard accessible: Tab to focus, Space/Enter to select.
+- The diagram auto-renders on any change (debounced 300ms).
+- Browser Back/Forward correctly restores selections and diagram.
+
+### JSON API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/scales` | List available scale names |
+| `GET` | `/scales/<name>` | Fretboard data as JSON |
+| `GET` | `/export/ascii` | Plain text diagram |
+| `GET` | `/export/svg` | SVG file |
+| `GET` | `/export/pdf` | PDF file |
+
+Query parameters (all endpoints):
 
 | Parameter      | Type   | Default  | Description                                               |
 |----------------|--------|----------|-----------------------------------------------------------|
@@ -407,8 +440,9 @@ Query parameters:
 | `mode`         | int    | `1`      | Mode degree                                               |
 | `nps`          | int    | —        | Notes-per-string; mutually exclusive with `frets`         |
 | `start_degree` | int    | `1`      | Scale degree to anchor on low E string                    |
+| `all_degrees`  | bool   | `false`  | One diagram per degree. Requires `nps` 2–4.               |
 
-Passing both `nps` and `frets` (as a range) must return HTTP 400.
+Passing both `nps` and `frets` (as a range) returns HTTP 400.
 
 ---
 

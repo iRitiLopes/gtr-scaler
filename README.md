@@ -73,6 +73,24 @@ uv run python -m gtr_scaler F melodic_minor --notes 3 --all-degrees --output F_m
 uv run python -m gtr_scaler F altered --notes 4 --all-degrees --output F_alt_all_4str.pdf
 ```
 
+## Web Server
+
+Run the Flask server to preview scales in a browser:
+
+```bash
+# Accessible from any device on your local network (default)
+uv run gtr-scaler-server
+
+# Custom port
+uv run gtr-scaler-server --port 8080
+
+# Localhost only
+uv run gtr-scaler-server --host 127.0.0.1
+```
+
+The HTML frontend features interactive circular note buttons and colored scale
+pill buttons. The diagram auto-updates as you select different options.
+
 ## Development
 
 Run the test suite:
