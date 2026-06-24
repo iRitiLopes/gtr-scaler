@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html as html_mod
 import json
 import re
 
@@ -71,34 +72,30 @@ def index() -> str | Response:
     catalog = current_app.config["SCALE_CATALOG"]
     projector = current_app.config["PROJECTOR"]
 
+    is_partial = request.args.get("partial") == "1"
+
     try:
         params = parse_diagram_params(
             args, notes, catalog, projector, allow_all_degrees=True
         )
         fret_start = compute_fret_start(projector, params)
     except HTTPException as exc:
+        if is_partial:
+            return Response(
+                f'<div class="alert alert-danger">{html_mod.escape(str(exc.description))}</div>',
+                mimetype="text/html",
+            ), exc.code
         return _render_error(str(exc.description), form)
 
-    format_type = request.args.get("format", "ascii")
     title = f"{params.effective_root} {params.effective_scale.display_name}"
 
-    if params.all_degrees and format_type == "ascii":
-        return _render_error("all_degrees is not supported for ASCII preview", form)
+    if is_partial:
+        return Response(
+            _render_html5_fragment(params, fret_start, title),
+            mimetype="text/html",
+        )
 
-    # ── PDF download ──────────────────────────────────────────────────────────
-    if format_type == "pdf":
-        return _render_pdf(params, fret_start, title)
-
-    # ── SVG inline preview ────────────────────────────────────────────────────
-    if format_type == "svg":
-        return _render_svg(params, fret_start, title, scales, form, counts)
-
-    # ── HTML5 inline preview ─────────────────────────────────────────────────
-    if format_type == "html5":
-        return _render_html5(params, fret_start, title, scales, form, counts)
-
-    # ── ASCII preview (default) ───────────────────────────────────────────────
-    return _render_ascii(params, fret_start, title, scales, form, counts)
+    return _render_html5(params, fret_start, title, scales, form, counts)
 
 
 def _render_pdf(params: DiagramParams, fret_start: int, title: str) -> Response:
@@ -172,6 +169,46 @@ def _render_svg(
     )
 
 
+def _render_html5_fragment(params: DiagramParams, fret_start: int, title: str) -> str:
+    """Return just the HTML5 diagram fragment (no template wrapper)."""
+    html5_renderer = current_app.config["HTML5_RENDERER"]
+
+    if params.all_degrees:
+        projector = current_app.config["PROJECTOR"]
+        fragments: list[str] = []
+        for deg in range(1, len(params.effective_scale.intervals) + 1):
+            fs = projector.degree_fret_start_with_shift(
+                params.effective_root, params.effective_scale, deg, params.nps
+            )
+            _cells, fe = projector.project_n_notes(
+                params.effective_root, params.effective_scale, params.nps, fs
+            )
+            deg_title = (
+                f"{params.effective_root} {params.effective_scale.display_name}"
+                f" \u2014 Shape {deg}"
+            )
+            fragment = html5_renderer.render(
+                params.effective_root,
+                params.effective_scale,
+                fs,
+                fe,
+                notes_per_string=params.nps,
+                title=deg_title,
+            )
+            fragments.append(fragment)
+        return "\n".join(fragments)
+    else:
+        fret_start, fret_end = _resolve_fret_range(params, fret_start)
+        return html5_renderer.render(
+            params.effective_root,
+            params.effective_scale,
+            fret_start,
+            fret_end,
+            notes_per_string=params.nps,
+            title=title,
+        )
+
+
 def _render_html5(
     params: DiagramParams,
     fret_start: int,
@@ -181,34 +218,7 @@ def _render_html5(
     counts: dict[str, int],
 ) -> str:
     """Render the HTML5 preview template."""
-    html5_renderer = current_app.config["HTML5_RENDERER"]
-
-    if params.all_degrees:
-        specs, titles = _build_all_degree_specs(params, fret_start)
-        html_parts: list[str] = []
-        for spec, spec_title in zip(specs, titles):
-            html_parts.append(
-                html5_renderer.render(
-                    spec.root,
-                    spec.scale,
-                    spec.fret_start,
-                    spec.fret_end,
-                    notes_per_string=spec.notes_per_string,
-                    title=spec_title,
-                )
-            )
-        html_output = "\n".join(html_parts)
-    else:
-        fret_start, fret_end = _resolve_fret_range(params, fret_start)
-        html_output = html5_renderer.render(
-            params.effective_root,
-            params.effective_scale,
-            fret_start,
-            fret_end,
-            notes_per_string=params.nps,
-            title=title,
-        )
-
+    html_output = _render_html5_fragment(params, fret_start, title)
     return render_template(
         "index.html",
         scales=scales,

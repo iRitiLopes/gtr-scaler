@@ -274,34 +274,15 @@ def test_index_no_params(client):
     assert "<form" in html
     assert "pentatonic_minor" in html
     assert "major" in html
-    assert "Generate Diagram" in html
 
 
-def test_index_ascii_preview(client):
-    """GET /?format=ascii&root=A&scale=pentatonic_minor shows ASCII art."""
-    resp = client.get("/?format=ascii&root=A&scale=pentatonic_minor")
+def test_index_default_preview(client):
+    """GET /?root=A&scale=pentatonic_minor shows HTML5 diagram (no format param needed)."""
+    resp = client.get("/?root=A&scale=pentatonic_minor")
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
-    assert "<pre" in html
-    assert "-R--" in html
-
-
-def test_index_svg_preview(client):
-    """GET /?format=svg&root=A&scale=pentatonic_minor shows inline SVG."""
-    resp = client.get("/?format=svg&root=A&scale=pentatonic_minor")
-    assert resp.status_code == 200
-    html = resp.data.decode("utf-8")
-    assert "<svg" in html
-
-
-@pytest.mark.skipif(not _cairo_available(), reason="Cairo native library not available")
-def test_index_pdf_download(client):
-    """GET /?format=pdf triggers a PDF download."""
-    resp = client.get("/?format=pdf&root=A&scale=pentatonic_minor")
-    assert resp.status_code == 200
-    assert resp.mimetype == "application/pdf"
-    assert "attachment" in resp.headers.get("Content-Disposition", "")
-    assert resp.data.startswith(b"%PDF")
+    assert ".gtr-diagram" in html
+    assert "<style>" in html or "gtr-diagram" in html
 
 
 def test_index_error_renders_html(client):
@@ -330,16 +311,6 @@ def test_index_mutual_exclusion_renders_html(client):
     assert "Cannot specify both" in html
 
 
-def test_index_all_degrees_svg(client):
-    """All-degrees SVG preview renders inline SVG."""
-    resp = client.get(
-        "/?format=svg&all_degrees=1&nps=3&root=A&scale=pentatonic_minor"
-    )
-    assert resp.status_code == 200
-    html = resp.data.decode("utf-8")
-    assert "<svg" in html
-
-
 def test_index_form_repopulation(client):
     """After error, form fields retain submitted values."""
     resp = client.get("/?root=Z&scale=major&frets=5-9")
@@ -356,7 +327,7 @@ def test_index_empty_nps(client):
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
     # Should render successfully (empty nps treated as no nps)
-    assert "<pre" in html or "<svg" in html or "<form" in html
+    assert "<form" in html
 
 
 # ── Scale interval counts in HTML ─────────────────────────────────────────────
@@ -399,8 +370,8 @@ def test_index_has_helper_divs(client):
 
 
 def test_index_html5_preview(client):
-    """GET /?format=html5&root=A&scale=pentatonic_minor shows HTML5 diagram."""
-    resp = client.get("/?format=html5&root=A&scale=pentatonic_minor")
+    """GET /?root=A&scale=pentatonic_minor shows HTML5 diagram (default format)."""
+    resp = client.get("/?root=A&scale=pentatonic_minor")
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
     assert ".gtr-diagram" in html
@@ -409,17 +380,17 @@ def test_index_html5_preview(client):
 
 
 def test_index_html5_with_nps(client):
-    """GET /?format=html5&nps=3 shows markers."""
-    resp = client.get("/?format=html5&root=A&scale=pentatonic_minor&nps=3")
+    """GET /?nps=3 shows markers."""
+    resp = client.get("/?root=A&scale=pentatonic_minor&nps=3")
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
     assert "gtr-marker" in html
 
 
 def test_index_html5_all_degrees(client):
-    """GET /?format=html5&all_degrees=1&nps=3 shows multiple diagrams."""
+    """GET /?all_degrees=1&nps=3 shows multiple diagrams."""
     resp = client.get(
-        "/?format=html5&all_degrees=1&nps=3&root=A&scale=pentatonic_minor"
+        "/?all_degrees=1&nps=3&root=A&scale=pentatonic_minor"
     )
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
@@ -428,26 +399,89 @@ def test_index_html5_all_degrees(client):
 
 
 def test_index_html5_form_repopulation(client):
-    """After render, form retains format=html5."""
-    resp = client.get("/?format=html5&root=A&scale=pentatonic_minor")
+    """After render, form retains submitted values."""
+    resp = client.get("/?root=A&scale=pentatonic_minor")
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
-    assert 'value="html5"' in html
-    assert "checked" in html
+    assert 'value="A"' in html
 
 
 def test_index_html5_error(client):
     """Invalid root renders HTML error page."""
-    resp = client.get("/?format=html5&root=Z")
+    resp = client.get("/?root=Z")
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
     assert "alert alert-danger" in html
     assert "Unknown root" in html
 
 
-def test_index_html5_radio_present(client):
-    """Page contains format_html5 radio input."""
+def test_index_has_diagram_container(client):
+    """Page contains the diagram-container div for auto-render."""
     resp = client.get("/")
     html = resp.data.decode("utf-8")
-    assert 'id="format_html5"' in html
-    assert 'value="html5"' in html
+    assert 'id="diagram-container"' in html
+
+
+def test_index_has_auto_render_js(client):
+    """Page includes the auto-render JavaScript."""
+    resp = client.get("/")
+    html = resp.data.decode("utf-8")
+    assert "updateDiagram" in html
+    assert "onFormChange" in html
+    assert "showLoading" in html
+    assert "debounceTimer" in html
+
+
+def test_index_no_format_radios(client):
+    """Page does NOT contain format radio buttons."""
+    resp = client.get("/")
+    html = resp.data.decode("utf-8")
+    assert 'id="format_ascii"' not in html
+    assert 'id="format_svg"' not in html
+    assert 'id="format_pdf"' not in html
+    assert 'id="format_html5"' not in html
+
+
+def test_index_no_submit_button(client):
+    """Page does NOT contain a submit button."""
+    resp = client.get("/")
+    html = resp.data.decode("utf-8")
+    assert "Generate Diagram" not in html
+
+
+# ── Partial endpoint (GET /?partial=1) ───────────────────────────────────────
+
+
+def test_index_partial_html5(client):
+    """GET /?root=A&scale=pentatonic_minor&partial=1 returns HTML5 fragment."""
+    resp = client.get("/?root=A&scale=pentatonic_minor&partial=1")
+    assert resp.status_code == 200
+    assert resp.mimetype == "text/html"
+    html = resp.data.decode("utf-8")
+    assert ".gtr-diagram" in html
+    # Should NOT be a full page
+    assert "<html" not in html
+    assert "<nav" not in html
+
+
+def test_index_partial_error(client):
+    """GET /?root=Z&partial=1 returns an HTML error fragment."""
+    resp = client.get("/?root=Z&partial=1")
+    assert resp.status_code == 400
+    assert resp.mimetype == "text/html"
+    html = resp.data.decode("utf-8")
+    assert "alert alert-danger" in html
+    assert "Unknown root" in html
+
+
+def test_index_partial_all_degrees(client):
+    """GET /?all_degrees=1&nps=3&root=A&scale=pentatonic_minor&partial=1 returns multiple diagrams."""
+    resp = client.get("/?all_degrees=1&nps=3&root=A&scale=pentatonic_minor&partial=1")
+    assert resp.status_code == 200
+    assert resp.mimetype == "text/html"
+    html = resp.data.decode("utf-8")
+    # Should have multiple gtr-diagram divs (5 for pentatonic)
+    assert html.count("gtr-diagram") >= 5
+    # Should NOT be a full page
+    assert "<html" not in html
+    assert "<nav" not in html

@@ -52,52 +52,18 @@
     </div>
     <div id="all-degrees-help" class="form-text text-muted ms-2" style="display:none;"></div>
   </div>
-  <div class="col-md-4">
-    <label class="form-label">Format</label>
-    <div class="d-flex gap-3">
-      <div class="form-check">
-        <input class="form-check-input" type="radio" name="format" id="format_ascii" value="ascii"
-          {% if form.format is not defined or form.format == 'ascii' %}checked{% endif %}>
-        <label class="form-check-label" for="format_ascii">ASCII</label>
-      </div>
-      <div class="form-check">
-        <input class="form-check-input" type="radio" name="format" id="format_svg" value="svg"
-          {% if form.format is defined and form.format == 'svg' %}checked{% endif %}>
-        <label class="form-check-label" for="format_svg">SVG</label>
-      </div>
-      <div class="form-check">
-        <input class="form-check-input" type="radio" name="format" id="format_pdf" value="pdf"
-          {% if form.format is defined and form.format == 'pdf' %}checked{% endif %}>
-        <label class="form-check-label" for="format_pdf">PDF</label>
-      </div>
-      <div class="form-check">
-        <input class="form-check-input" type="radio" name="format" id="format_html5" value="html5"
-          {% if form.format is defined and form.format == 'html5' %}checked{% endif %}>
-        <label class="form-check-label" for="format_html5">HTML5</label>
-      </div>
-    </div>
-  </div>
-  <div class="col-12">
-    <button type="submit" class="btn btn-primary">Generate Diagram</button>
-  </div>
 </form>
 
 {% if error %}
 <div class="alert alert-danger">{{ error }}</div>
 {% endif %}
 
-{% if result %}
-<h2>{{ diagram_title }}</h2>
-{% if result_type == 'ascii' %}
-<pre class="bg-light p-3 rounded" style="font-family: monospace; font-size: 0.85rem;">{{ ascii_output }}</pre>
-{% elif result_type == 'svg' %}
-{% for svg in svg_outputs %}
-<div class="mb-3 overflow-x-auto">{{ svg|safe }}</div>
-{% endfor %}
-{% elif result_type == 'html5' %}
-<div class="mb-3">{{ html_output|safe }}</div>
-{% endif %}
-{% endif %}
+<div id="diagram-container">
+  {% if result %}
+  <h2>{{ diagram_title }}</h2>
+  <div class="mb-3">{{ html_output|safe }}</div>
+  {% endif %}
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -114,10 +80,6 @@
   var elMode         = document.getElementById("mode");
   var elStartDeg     = document.getElementById("start_degree");
   var elAllDegrees   = document.getElementById("all_degrees");
-  var elFmtAscii     = document.getElementById("format_ascii");
-  var elFmtSvg       = document.getElementById("format_svg");
-  var elFmtPdf       = document.getElementById("format_pdf");
-  var elFmtHtml5     = document.getElementById("format_html5");
   var elScale        = document.getElementById("scale");
 
   var helpFrets      = document.getElementById("frets-help");
@@ -195,12 +157,6 @@
 
       // All-degrees helper text
       showHelp(helpAllDegrees, "Requires Notes/String 2\u20134; Start Degree = 1");
-
-      // Disable ASCII radio; if ASCII was selected, switch to SVG
-      disableField(elFmtAscii);
-      if (elFmtAscii.checked) {
-        elFmtSvg.checked = true;
-      }
     } else {
       enableField(elStartDeg);
       showHelp(helpStartDeg, getScaleBoundsText());
@@ -210,8 +166,6 @@
       elNps.removeAttribute("max");
 
       showHelp(helpAllDegrees, "");
-
-      enableField(elFmtAscii);
     }
   }
 
@@ -243,44 +197,100 @@
     }
   }
 
-  // ── Constraint 4: Format ↔ All-Degrees interaction ────────────────────────
-
-  function applyFormatConstraints() {
-    // If format is ASCII and all_degrees is checked, force uncheck all_degrees
-    if (elFmtAscii.checked && elAllDegrees.checked) {
-      elAllDegrees.checked = false;
-      applyAllDegrees();  // re-apply to undo all-degrees constraints
-    }
-    // Disable all_degrees checkbox when ASCII is selected
-    if (elFmtAscii.checked) {
-      disableField(elAllDegrees);
-    } else {
-      enableField(elAllDegrees);
-    }
-  }
-
   // ── Master re-evaluation ──────────────────────────────────────────────────
 
   function evaluate() {
     applyScaleBounds();
     applyAllDegrees();
-    applyFormatConstraints();
     applyMutualExclusion();
   }
 
-  // ── Event listeners ───────────────────────────────────────────────────────
+  // ── Event listeners (constraint logic) ────────────────────────────────────
 
   elFrets.addEventListener("input", evaluate);
   elNps.addEventListener("input", evaluate);
   elScale.addEventListener("change", evaluate);
   elAllDegrees.addEventListener("change", evaluate);
-  elFmtAscii.addEventListener("change", evaluate);
-  elFmtSvg.addEventListener("change", evaluate);
-  elFmtPdf.addEventListener("change", evaluate);
-  elFmtHtml5.addEventListener("change", evaluate);
 
   // Initial evaluation on page load
   evaluate();
+
+  // ── Auto-render on form changes ───────────────────────────────────────────
+
+  var diagramContainer = document.getElementById("diagram-container");
+  var form = document.getElementById("diagram-form");
+  var debounceTimer = null;
+  var DEBOUNCE_MS = 300;
+
+  function showLoading() {
+    if (!diagramContainer) return;
+    diagramContainer.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Generating diagram...</p></div>';
+  }
+
+  function updateDiagram() {
+    var params = new URLSearchParams(new FormData(form));
+    params.set("partial", "1");
+    var queryString = params.toString();
+
+    showLoading();
+
+    fetch("/?" + queryString)
+      .then(function (resp) {
+        if (!resp.ok) {
+          return resp.text().then(function (text) {
+            throw new Error(text || "Server error");
+          });
+        }
+        return resp.text();
+      })
+      .then(function (htmlFragment) {
+        if (diagramContainer) {
+          diagramContainer.innerHTML = htmlFragment;
+        }
+        // Update URL without reloading
+        var pageParams = new URLSearchParams(new FormData(form));
+        var newUrl = window.location.pathname + "?" + pageParams.toString();
+        history.pushState(null, "", newUrl);
+      })
+      .catch(function (err) {
+        if (diagramContainer) {
+          diagramContainer.innerHTML = '<div class="alert alert-danger">' + (err.message || "Failed to generate diagram") + '</div>';
+        }
+      });
+  }
+
+  function onFormChange() {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(updateDiagram, DEBOUNCE_MS);
+  }
+
+  // Listen on all form inputs
+  form.querySelectorAll("input, select").forEach(function (el) {
+    el.addEventListener("change", onFormChange);
+    if (el.type === "text" || el.type === "number") {
+      el.addEventListener("input", onFormChange);
+    }
+  });
+
+  // Handle browser back/forward
+  window.addEventListener("popstate", function () {
+    // Re-parse URL params into form fields, then trigger update
+    var urlParams = new URLSearchParams(window.location.search);
+    form.querySelectorAll("input, select").forEach(function (el) {
+      if (el.name && urlParams.has(el.name)) {
+        var val = urlParams.get(el.name);
+        if (el.type === "checkbox") {
+          el.checked = (val === "1" || val === "on");
+        } else {
+          el.value = val;
+        }
+      } else if (el.type === "checkbox") {
+        el.checked = false;
+      }
+    });
+    evaluate(); // re-run constraint logic
+    updateDiagram();
+  });
 })();
 </script>
 {% endblock %}
