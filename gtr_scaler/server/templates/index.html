@@ -6,19 +6,25 @@
 <h1 class="mb-4">Guitar Scale Diagram Generator</h1>
 
 <form method="GET" action="/" class="row g-3 mb-4" id="diagram-form">
-  <div class="col-md-3">
-    <label for="root" class="form-label">Root Note</label>
-    <input type="text" class="form-control" id="root" name="root"
-           value="{{ form.root if form.root is defined else 'A' }}" placeholder="A">
-  </div>
-  <div class="col-md-4">
-    <label for="scale" class="form-label">Scale</label>
-    <select class="form-select" id="scale" name="scale">
-      {% for key, display in scales %}
-      <option value="{{ key }}"
-        {% if form.scale is defined and form.scale == key %}selected{% endif %}>{{ display }}</option>
+  {% set effective_root = form.root if form.root is defined else 'A' %}
+  <div class="col-12 mb-3">
+    <label class="form-label">Root Note</label>
+    <div class="gs-btn-group-wrap" id="note-buttons" role="radiogroup" aria-label="Root note">
+      {% for note in notes %}
+      <button type="button" data-note="{{ note }}" class="gs-note-btn{% if effective_root == note %} selected{% endif %}" role="radio" aria-checked="{{ 'true' if effective_root == note else 'false' }}" tabindex="0">{{ note }}</button>
       {% endfor %}
-    </select>
+    </div>
+    <input type="hidden" id="root" name="root" value="{{ effective_root }}">
+  </div>
+  {% set effective_scale = form.scale if form.scale is defined else 'pentatonic_minor' %}
+  <div class="col-12 mb-3">
+    <label class="form-label">Scale</label>
+    <div class="gs-btn-group-wrap" id="scale-buttons" role="radiogroup" aria-label="Scale">
+      {% for key, display in scales %}
+      <button type="button" data-scale="{{ key }}" class="gs-scale-btn{% if effective_scale == key %} selected{% endif %}" role="radio" aria-checked="{{ 'true' if effective_scale == key else 'false' }}" style="background-color: {{ scale_colors.get(key, '#6c757d') }};" tabindex="0">{{ display }}</button>
+      {% endfor %}
+    </div>
+    <input type="hidden" id="scale" name="scale" value="{{ effective_scale }}">
   </div>
   <div class="col-md-2">
     <label for="frets" class="form-label">Frets</label>
@@ -87,6 +93,24 @@
   var helpMode       = document.getElementById("mode-help");
   var helpStartDeg   = document.getElementById("start-degree-help");
   var helpAllDegrees = document.getElementById("all-degrees-help");
+
+  // ── Selection helpers for button groups ────────────────────────────────
+
+  function selectNoteButton(note) {
+    document.querySelectorAll("#note-buttons .gs-note-btn").forEach(function(btn) {
+      var isSelected = btn.getAttribute("data-note") === note;
+      btn.classList.toggle("selected", isSelected);
+      btn.setAttribute("aria-checked", isSelected ? "true" : "false");
+    });
+  }
+
+  function selectScaleButton(scale) {
+    document.querySelectorAll("#scale-buttons .gs-scale-btn").forEach(function(btn) {
+      var isSelected = btn.getAttribute("data-scale") === scale;
+      btn.classList.toggle("selected", isSelected);
+      btn.setAttribute("aria-checked", isSelected ? "true" : "false");
+    });
+  }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -215,6 +239,38 @@
   // Initial evaluation on page load
   evaluate();
 
+  // ── Button group click handlers ────────────────────────────────────────
+
+  document.querySelectorAll("#note-buttons .gs-note-btn").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      var note = btn.getAttribute("data-note");
+      document.getElementById("root").value = note;
+      selectNoteButton(note);
+      evaluate();
+      onFormChange();
+    });
+  });
+
+  document.querySelectorAll("#scale-buttons .gs-scale-btn").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      var scale = btn.getAttribute("data-scale");
+      document.getElementById("scale").value = scale;
+      selectScaleButton(scale);
+      evaluate();
+      onFormChange();
+    });
+  });
+
+  // Keyboard activation for button groups
+  document.querySelectorAll("#note-buttons .gs-note-btn, #scale-buttons .gs-scale-btn").forEach(function(btn) {
+    btn.addEventListener("keydown", function(e) {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        btn.click();
+      }
+    });
+  });
+
   // ── Auto-render on form changes ───────────────────────────────────────────
 
   var diagramContainer = document.getElementById("diagram-container");
@@ -289,6 +345,11 @@
       }
     });
     evaluate(); // re-run constraint logic
+    // Restore button visual state
+    var rootInput = document.getElementById("root");
+    if (rootInput) selectNoteButton(rootInput.value);
+    var scaleInput = document.getElementById("scale");
+    if (scaleInput) selectScaleButton(scaleInput.value);
     updateDiagram();
   });
 })();

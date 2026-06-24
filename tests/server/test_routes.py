@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 import pytest
 
 from gtr_scaler.server.app import create_app
@@ -317,7 +315,7 @@ def test_index_form_repopulation(client):
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
     assert 'value="Z"' in html
-    assert re.search(r'value="major"\s+selected', html)  # major scale should be selected
+    assert 'data-scale="major" class="gs-scale-btn selected"' in html
     assert 'value="5-9"' in html
 
 
@@ -404,6 +402,7 @@ def test_index_html5_form_repopulation(client):
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
     assert 'value="A"' in html
+    assert 'data-note="A" class="gs-note-btn selected"' in html
 
 
 def test_index_html5_error(client):
@@ -485,3 +484,44 @@ def test_index_partial_all_degrees(client):
     # Should NOT be a full page
     assert "<html" not in html
     assert "<nav" not in html
+
+
+def test_index_note_buttons_present(client):
+    """The page has 12 note circle buttons."""
+    resp = client.get("/")
+    html = resp.data.decode("utf-8")
+    assert html.count('class="gs-note-btn') == 12
+
+
+def test_index_scale_buttons_present(client):
+    """The page has scale chip buttons for all built-in scales."""
+    resp = client.get("/")
+    html = resp.data.decode("utf-8")
+    assert html.count('class="gs-scale-btn') >= 15
+
+
+def test_index_default_selections(client):
+    """Default root is A, default scale is pentatonic_minor."""
+    resp = client.get("/")
+    html = resp.data.decode("utf-8")
+    assert 'data-note="A" class="gs-note-btn selected"' in html
+    assert 'data-scale="pentatonic_minor" class="gs-scale-btn selected"' in html
+
+
+def test_index_selection_from_url_params(client):
+    """URL params pre-select correct buttons."""
+    resp = client.get("/?root=C&scale=major")
+    html = resp.data.decode("utf-8")
+    assert 'data-note="C" class="gs-note-btn selected"' in html
+    assert 'data-scale="major" class="gs-scale-btn selected"' in html
+
+
+# ── Server runner module ─────────────────────────────────────────────────────
+
+
+def test_server_runner_module_exists(client):
+    """The server runner module can be imported."""
+    from gtr_scaler.server.run import main, _parse_args
+
+    assert callable(main)
+    assert callable(_parse_args)

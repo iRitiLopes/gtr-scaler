@@ -15,6 +15,7 @@ dependencies = [
 
 [project.scripts]
 gtr-scaler = "gtr_scaler.__main__:main"
+gtr-scaler-server = "gtr_scaler.server.run:main"
 
 [dependency-groups]
 dev = [

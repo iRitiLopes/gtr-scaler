@@ -18,6 +18,26 @@ from gtr_scaler.server.validation import (
 
 pages_bp = Blueprint("pages", __name__)
 
+_CHROMATIC_NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+_SCALE_COLORS: dict[str, str] = {
+    "pentatonic_minor": "#e74c3c",
+    "pentatonic_major": "#27ae60",
+    "major": "#3498db",
+    "ionian": "#2980b9",
+    "dorian": "#e67e22",
+    "phrygian": "#9b59b6",
+    "lydian": "#1abc9c",
+    "mixolydian": "#f39c12",
+    "aeolian": "#e91e63",
+    "locrian": "#607d8b",
+    "natural_minor": "#795548",
+    "harmonic_minor": "#8e44ad",
+    "melodic_minor": "#16a085",
+    "altered": "#c0392b",
+    "blues": "#2c3e50",
+}
+
 
 def _get_scales() -> list[tuple[str, str]]:
     """Return list of ``(key, display_name)`` for the scale dropdown."""
@@ -46,6 +66,8 @@ def _render_error(error: str, form: dict[str, str]) -> tuple[str, int]:
         form=form,
         error=error,
         scale_interval_counts_json=json.dumps(counts),
+        notes=_CHROMATIC_NOTES,
+        scale_colors=_SCALE_COLORS,
     ), 200
 
 
@@ -59,7 +81,12 @@ def index() -> str | Response:
     has_params = any(v != "" for v in request.args.values())
     if not has_params:
         return render_template(
-            "index.html", scales=scales, form={}, scale_interval_counts_json=json.dumps(counts)
+            "index.html",
+            scales=scales,
+            form={},
+            scale_interval_counts_json=json.dumps(counts),
+            notes=_CHROMATIC_NOTES,
+            scale_colors=_SCALE_COLORS,
         )
 
     # Filter out empty strings to avoid int("") crashes
@@ -155,6 +182,8 @@ def _render_html5(
         html_output=html_output,
         diagram_title=title,
         scale_interval_counts_json=json.dumps(counts),
+        notes=_CHROMATIC_NOTES,
+        scale_colors=_SCALE_COLORS,
     )
 
 
