@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import html as html_mod
 import json
-import re
 
 from flask import Blueprint, Response, current_app, render_template, request
 from werkzeug.exceptions import HTTPException
 
 from gtr_scaler.domain.scales import SCALE_PATTERNS
-from gtr_scaler.renderers.multi import DiagramSpec
 from gtr_scaler.server.validation import (
     DiagramParams,
     _parse_frets,
@@ -98,77 +96,6 @@ def index() -> str | Response:
     return _render_html5(params, fret_start, title, scales, form, counts)
 
 
-def _render_pdf(params: DiagramParams, fret_start: int, title: str) -> Response:
-    """Generate and return a PDF download response."""
-    svg_renderer = current_app.config["SVG_RENDERER"]
-    pdf_converter = current_app.config["PDF_CONVERTER"]
-    pdf_builder = current_app.config["PDF_BUILDER"]
-
-    if params.all_degrees:
-        specs, titles = _build_all_degree_specs(params, fret_start)
-        pdf_bytes = pdf_builder.build(specs, titles=titles, max_per_page=3)
-    else:
-        fret_start, fret_end = _resolve_fret_range(params, fret_start)
-        svg = svg_renderer.render(
-            params.effective_root,
-            params.effective_scale,
-            fret_start,
-            fret_end,
-            notes_per_string=params.nps,
-            title=title,
-        )
-        pdf_bytes = pdf_converter.svg_to_pdf(svg)
-
-    filename = f"{params.effective_root}_{params.effective_scale.name}.pdf"
-    return Response(
-        pdf_bytes,
-        mimetype="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
-
-def _render_svg(
-    params: DiagramParams,
-    fret_start: int,
-    title: str,
-    scales: list[tuple[str, str]],
-    form: dict[str, str],
-    counts: dict[str, int],
-) -> str:
-    """Render the SVG preview template."""
-    svg_renderer = current_app.config["SVG_RENDERER"]
-    multi_renderer = current_app.config["MULTI_RENDERER"]
-
-    if params.all_degrees:
-        specs, titles = _build_all_degree_specs(params, fret_start)
-        svg = multi_renderer.render(specs, titles=titles)
-        svg = re.sub(r"<\?xml[^?]*\?>\s*", "", svg)
-        svg_outputs = [svg]
-    else:
-        fret_start, fret_end = _resolve_fret_range(params, fret_start)
-        svg = svg_renderer.render(
-            params.effective_root,
-            params.effective_scale,
-            fret_start,
-            fret_end,
-            notes_per_string=params.nps,
-            title=title,
-        )
-        svg = re.sub(r"<\?xml[^?]*\?>\s*", "", svg)
-        svg_outputs = [svg]
-
-    return render_template(
-        "index.html",
-        scales=scales,
-        form=form,
-        result=True,
-        result_type="svg",
-        svg_outputs=svg_outputs,
-        diagram_title=title,
-        scale_interval_counts_json=json.dumps(counts),
-    )
-
-
 def _render_html5_fragment(params: DiagramParams, fret_start: int, title: str) -> str:
     """Return just the HTML5 diagram fragment (no template wrapper)."""
     html5_renderer = current_app.config["HTML5_RENDERER"]
@@ -231,39 +158,6 @@ def _render_html5(
     )
 
 
-def _render_ascii(
-    params: DiagramParams,
-    fret_start: int,
-    title: str,
-    scales: list[tuple[str, str]],
-    form: dict[str, str],
-    counts: dict[str, int],
-) -> str:
-    """Render the ASCII preview template."""
-    ascii_renderer = current_app.config["ASCII_RENDERER"]
-
-    fret_start, fret_end = _resolve_fret_range(params, fret_start)
-    ascii_text = ascii_renderer.render(
-        params.effective_root,
-        params.effective_scale,
-        fret_start,
-        fret_end,
-        notes_per_string=params.nps,
-        title=title,
-        color=False,
-    )
-    return render_template(
-        "index.html",
-        scales=scales,
-        form=form,
-        result=True,
-        result_type="ascii",
-        ascii_output=ascii_text,
-        diagram_title=title,
-        scale_interval_counts_json=json.dumps(counts),
-    )
-
-
 def _resolve_fret_range(params: DiagramParams, fret_start: int) -> tuple[int, int]:
     """Return (fret_start, fret_end) based on params.nps or params.frets."""
     projector = current_app.config["PROJECTOR"]
@@ -280,34 +174,3 @@ def _resolve_fret_range(params: DiagramParams, fret_start: int) -> tuple[int, in
             params.effective_root, params.effective_scale, params.start_degree
         )
     return fret_start, fret_end
-
-
-def _build_all_degree_specs(
-    params: DiagramParams, fret_start: int
-) -> tuple[list[DiagramSpec], list[str]]:
-    """Build diagram specs and titles for all-degrees rendering."""
-    projector = current_app.config["PROJECTOR"]
-
-    specs: list[DiagramSpec] = []
-    titles: list[str] = []
-    for deg in range(1, len(params.effective_scale.intervals) + 1):
-        fs = projector.degree_fret_start_with_shift(
-            params.effective_root, params.effective_scale, deg, params.nps
-        )
-        _cells, fe = projector.project_n_notes(
-            params.effective_root, params.effective_scale, params.nps, fs
-        )
-        specs.append(
-            DiagramSpec(
-                root=params.effective_root,
-                scale=params.effective_scale,
-                fret_start=fs,
-                fret_end=fe,
-                notes_per_string=params.nps,
-            )
-        )
-        titles.append(
-            f"{params.effective_root} {params.effective_scale.display_name}"
-            f" \u2014 Shape {deg}"
-        )
-    return specs, titles
