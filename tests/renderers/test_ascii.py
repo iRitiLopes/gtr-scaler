@@ -6,12 +6,13 @@ from gtr_scaler.renderers.ascii import AsciiRenderer
 notes = NoteService()
 catalog = ScaleCatalog(notes)
 projector = FretboardProjector(notes)
-renderer = AsciiRenderer(projector, color=False)
+renderer = AsciiRenderer(color=False)
 
 
 def test_render_a_minor_pentatonic_3nps_fret_start_5():
     scale = catalog.get("pentatonic_minor")
-    result = renderer.render("A", scale, fret_start=5, notes_per_string=3)
+    cells, fret_end = projector.project_n_notes("A", scale, 3, 5)
+    result = renderer.render(cells, fret_start=5, fret_end=fret_end, title="A Pentatonic Minor")
     expected = "\n".join(
         [
             "A Pentatonic Minor  |  Standard tuning (E A D G B e)",
@@ -32,9 +33,8 @@ def test_render_a_minor_pentatonic_3nps_fret_start_5():
 
 def test_render_with_shape_label():
     scale = catalog.get("pentatonic_minor")
-    result = renderer.render(
-        "A", scale, fret_start=0, fret_end=12, title="A Pentatonic Minor \u2014 Shape 1"
-    )
+    cells = projector.project("A", scale, 0, 12)
+    result = renderer.render(cells, fret_start=0, fret_end=12, title="A Pentatonic Minor \u2014 Shape 1")
     header = result.split("\n")[0]
     assert "Shape 1" in header
     assert "\u2014" in header
@@ -43,7 +43,8 @@ def test_render_with_shape_label():
 
 def test_render_without_shape_label():
     scale = catalog.get("pentatonic_minor")
-    result = renderer.render("A", scale, fret_start=0, fret_end=12)
+    cells = projector.project("A", scale, 0, 12)
+    result = renderer.render(cells, fret_start=0, fret_end=12, title="A Pentatonic Minor")
     header = result.split("\n")[0]
     assert "\u2014" not in header
     assert header == "A Pentatonic Minor  |  Standard tuning (E A D G B e)"

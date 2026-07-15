@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import html
 
-from gtr_scaler.domain.fretboard import STRING_NAMES, FretboardProjector, FretCell
-from gtr_scaler.domain.scales import Scale
+from gtr_scaler.domain.fretboard import STRING_NAMES, FretCell
 from gtr_scaler.renderers._constants import _INTERVAL_LABEL, _TETRAD_INTERVALS
 
 # Full interval names for tooltips
@@ -38,27 +37,21 @@ def _interval_color_class(interval: str) -> str:
 class Html5Renderer:
     """Renders fretboard diagrams as self-contained HTML fragments."""
 
-    def __init__(self, projector: FretboardProjector) -> None:
-        self._projector = projector
-
     def render(
         self,
-        root: str,
-        scale: Scale,
-        fret_start: int = 0,
-        fret_end: int = 12,
-        notes_per_string: int | None = None,
+        cells: list[FretCell],
+        fret_start: int,
+        fret_end: int,
         title: str | None = None,
     ) -> str:
         """Return a self-contained HTML fragment string."""
-        cells, fret_end = self._build_cells(root, scale, fret_start, fret_end, notes_per_string)
         cell_map: dict[tuple[int, int], FretCell] = {(c.string_idx, c.fret): c for c in cells}
         num_frets = fret_end - fret_start + 1
 
         parts: list[str] = []
         parts.append(self._build_css(num_frets))
 
-        diagram_title = title if title is not None else f"{root} {scale.display_name}"
+        diagram_title = title or ""
         escaped_title = html.escape(diagram_title)
 
         parts.append('<div class="gtr-diagram">')
@@ -69,20 +62,6 @@ class Html5Renderer:
         parts.append(self._build_js())
 
         return "\n".join(parts)
-
-    def _build_cells(
-        self,
-        root: str,
-        scale: Scale,
-        fret_start: int,
-        fret_end: int,
-        notes_per_string: int | None,
-    ) -> tuple[list[FretCell], int]:
-        """Delegate to the projector and return (cells, fret_end)."""
-        if notes_per_string is not None:
-            return self._projector.project_n_notes(root, scale, notes_per_string, fret_start)
-        cells = self._projector.project(root, scale, fret_start, fret_end)
-        return cells, fret_end
 
     def _build_css(self, num_frets: int) -> str:
         """Return a <style> block with CSS grid layout for the fretboard."""

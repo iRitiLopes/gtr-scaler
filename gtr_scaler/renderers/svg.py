@@ -15,15 +15,13 @@ from xml.sax.saxutils import escape
 
 from fretboard.fretboard import Fretboard as _Fretboard
 
-from gtr_scaler.domain.fretboard import FretboardProjector, FretCell
-from gtr_scaler.domain.scales import Scale
+from gtr_scaler.domain.fretboard import FretCell
 from gtr_scaler.renderers._constants import _INTERVAL_LABEL, _TETRAD_INTERVALS
 
 # Colors matching the ASCII renderer's semantic coloring
 _COLOR_ROOT = "firebrick"
 _COLOR_TETRAD = "steelblue"
 _COLOR_PASSING = "olivedrab"
-_MULTI_DIAGRAM_GAP = 20  # px gap between stacked diagrams
 _TITLE_HEIGHT = 60
 
 
@@ -55,8 +53,6 @@ def _fretboard_style(num_frets: int) -> dict[str, dict[str, int]]:
 
 
 def _build_fretboard(
-    root: str,
-    scale: Scale,
     cells: list[FretCell],
     fret_start: int,
     fret_end: int,
@@ -88,121 +84,116 @@ def _build_fretboard(
     return fb
 
 
-def _rotate_ccw(svg: str) -> str:
-    """Rotate SVG content 90° counter-clockwise (portrait → landscape).
+class SvgPostProcessor:
+    """Applies rotation and title wrapping to raw fretboard SVG strings."""
 
-    A point (x, y) in the original maps to (y, W-x) in the rotated canvas,
-    achieved with: transform="translate(0,W) rotate(-90)"
-    The canvas dimensions are swapped: new width=H, new height=W.
-    """
-    m_w = re.search(r'<svg[^>]*\swidth="([^"]+)"', svg)
-    m_h = re.search(r'<svg[^>]*\sheight="([^"]+)"', svg)
-    assert m_w is not None, "SVG missing width attribute"
-    assert m_h is not None, "SVG missing height attribute"
-    w = float(m_w.group(1))
-    h = float(m_h.group(1))
+    def process(self, svg: str, title: str | None = None) -> str:
+        """Rotate 90° CCW and optionally prepend a title."""
+        svg = self._rotate_ccw(svg)
+        if title is not None:
+            svg = self._wrap_with_title(svg, title)
+        return svg
 
-    svg = re.sub(r'(<svg[^>]*\s)width="[^"]+"', rf'\g<1>width="{h:.0f}"', svg, count=1)
-    svg = re.sub(r'(<svg[^>]*\s)height="[^"]+"', rf'\g<1>height="{w:.0f}"', svg, count=1)
+    @staticmethod
+    def _rotate_ccw(svg: str) -> str:
+        """Rotate SVG content 90° counter-clockwise (portrait → landscape).
 
-    # Wrap everything between <svg ...> and </svg> in a rotated group
-    # (skip past the XML declaration to find the <svg> opening tag)
-    svg_tag_start = svg.index("<svg")
-    open_end = svg.index(">", svg_tag_start) + 1
-    close_start = svg.rindex("</svg>")
-    content = svg[open_end:close_start]
-    wrapped = f'<g transform="translate(0,{w:.0f}) rotate(-90)">{content}</g>'
-    return svg[:open_end] + wrapped + svg[close_start:]
+        A point (x, y) in the original maps to (y, W-x) in the rotated canvas,
+        achieved with: transform="translate(0,W) rotate(-90)"
+        The canvas dimensions are swapped: new width=H, new height=W.
+        """
+        m_w = re.search(r'<svg[^>]*\swidth="([^"]+)"', svg)
+        m_h = re.search(r'<svg[^>]*\sheight="([^"]+)"', svg)
+        assert m_w is not None, "SVG missing width attribute"
+        assert m_h is not None, "SVG missing height attribute"
+        w = float(m_w.group(1))
+        h = float(m_h.group(1))
 
+        svg = re.sub(r'(<svg[^>]*\s)width="[^"]+"', rf'\g<1>width="{h:.0f}"', svg, count=1)
+        svg = re.sub(r'(<svg[^>]*\s)height="[^"]+"', rf'\g<1>height="{w:.0f}"', svg, count=1)
 
-def _wrap_with_title(
-    svg: str, title: str, title_height: int = _TITLE_HEIGHT
-) -> str:
-    """Wrap an already-rotated SVG diagram with a title above it.
+        # Wrap everything between <svg ...> and </svg> in a rotated group
+        # (skip past the XML declaration to find the <svg> opening tag)
+        svg_tag_start = svg.index("<svg")
+        open_end = svg.index(">", svg_tag_start) + 1
+        close_start = svg.rindex("</svg>")
+        content = svg[open_end:close_start]
+        wrapped = f'<g transform="translate(0,{w:.0f}) rotate(-90)">{content}</g>'
+        return svg[:open_end] + wrapped + svg[close_start:]
 
-    The input SVG is assumed to already be rotated 90° CCW (via _rotate_ccw).
-    Its structure is: <svg width="H" height="280">
-                        <g transform="translate(0,280) rotate(-90)">...</g>
-                      </svg>
+    @staticmethod
+    def _wrap_with_title(
+        svg: str, title: str, title_height: int = _TITLE_HEIGHT
+    ) -> str:
+        """Wrap an already-rotated SVG diagram with a title above it.
 
-    This function:
-      1. Increases the SVG height by title_height.
-      2. Shifts the inner <g> transform's Y translation by the same amount.
-      3. Inserts a centered <text> element before the <g>.
-    """
-    m_w = re.search(r'<svg[^>]*\swidth="([^"]+)"', svg)
-    m_h = re.search(r'<svg[^>]*\sheight="([^"]+)"', svg)
-    assert m_w is not None, "SVG missing width attribute"
-    assert m_h is not None, "SVG missing height attribute"
-    w = float(m_w.group(1))
-    h = float(m_h.group(1))
-    new_height = h + title_height
+        The input SVG is assumed to already be rotated 90° CCW (via _rotate_ccw).
+        Its structure is: <svg width="H" height="280">
+                            <g transform="translate(0,280) rotate(-90)">...</g>
+                          </svg>
 
-    # Update height
-    svg = re.sub(
-        r'(<svg[^>]*\s)height="[^"]+"',
-        rf'\g<1>height="{new_height:.0f}"',
-        svg,
-        count=1,
-    )
+        This function:
+          1. Increases the SVG height by title_height.
+          2. Shifts the inner <g> transform's Y translation by the same amount.
+          3. Inserts a centered <text> element before the <g>.
+        """
+        m_w = re.search(r'<svg[^>]*\swidth="([^"]+)"', svg)
+        m_h = re.search(r'<svg[^>]*\sheight="([^"]+)"', svg)
+        assert m_w is not None, "SVG missing width attribute"
+        assert m_h is not None, "SVG missing height attribute"
+        w = float(m_w.group(1))
+        h = float(m_h.group(1))
+        new_height = h + title_height
 
-    # Shift the <g> transform's Y translation
-    def _shift_g(match: re.Match[str]) -> str:
-        old_y = float(match.group(1))
-        new_y = old_y + title_height
-        return f'translate(0,{new_y:.0f}) rotate(-90)'
+        # Update height
+        svg = re.sub(
+            r'(<svg[^>]*\s)height="[^"]+"',
+            rf'\g<1>height="{new_height:.0f}"',
+            svg,
+            count=1,
+        )
 
-    svg = re.sub(
-        r'translate\(0,([^)]+)\)\s*rotate\(-90\)',
-        _shift_g,
-        svg,
-        count=1,
-    )
+        # Shift the <g> transform's Y translation
+        def _shift_g(match: re.Match[str]) -> str:
+            old_y = float(match.group(1))
+            new_y = old_y + title_height
+            return f'translate(0,{new_y:.0f}) rotate(-90)'
 
-    # Insert title text after <svg ...>
-    escaped_title = escape(title)
-    text_elem = (
-        f'<text x="{w / 2:.0f}" y="{title_height / 2 + 7:.0f}" '
-        f'text-anchor="middle" font-family="sans-serif" '
-        f'font-size="16" font-weight="bold" fill="#333">'
-        f"{escaped_title}</text>\n"
-    )
-    svg_tag_start = svg.index("<svg")
-    svg_tag_end = svg.index(">", svg_tag_start) + 1
-    svg = svg[:svg_tag_end] + "\n" + text_elem + svg[svg_tag_end:]
+        svg = re.sub(
+            r'translate\(0,([^)]+)\)\s*rotate\(-90\)',
+            _shift_g,
+            svg,
+            count=1,
+        )
 
-    return svg
+        # Insert title text after <svg ...>
+        escaped_title = escape(title)
+        text_elem = (
+            f'<text x="{w / 2:.0f}" y="{title_height / 2 + 7:.0f}" '
+            f'text-anchor="middle" font-family="sans-serif" '
+            f'font-size="16" font-weight="bold" fill="#333">'
+            f"{escaped_title}</text>\n"
+        )
+        svg_tag_start = svg.index("<svg")
+        svg_tag_end = svg.index(">", svg_tag_start) + 1
+        svg = svg[:svg_tag_end] + "\n" + text_elem + svg[svg_tag_end:]
+
+        return svg
 
 
 class SvgRenderer:
-    """Renders fretboard diagrams as SVG strings."""
-
-    def __init__(self, projector: FretboardProjector) -> None:
-        self._projector = projector
+    """Renders raw fretboard diagrams as SVG strings (no rotation, no title)."""
 
     def render(
         self,
-        root: str,
-        scale: Scale,
+        cells: list[FretCell],
         fret_start: int = 0,
         fret_end: int = 12,
-        notes_per_string: int | None = None,
-        title: str | None = None,
     ) -> str:
-        """Return an SVG string of the fretboard diagram."""
-        if notes_per_string is not None:
-            cells, fret_end = self._projector.project_n_notes(
-                root, scale, notes_per_string, fret_start
-            )
-        else:
-            cells = self._projector.project(root, scale, fret_start, fret_end)
-
-        fb = _build_fretboard(root, scale, cells, fret_start, fret_end)
+        """Return a raw SVG string of the fretboard diagram."""
+        fb = _build_fretboard(cells, fret_start, fret_end)
         fb.draw()
 
         buf = StringIO()
         fb.drawing.write(buf)
-        svg = _rotate_ccw(buf.getvalue())
-        if title is not None:
-            svg = _wrap_with_title(svg, title)
-        return svg
+        return buf.getvalue()

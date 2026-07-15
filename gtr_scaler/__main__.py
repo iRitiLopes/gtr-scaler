@@ -4,14 +4,16 @@ import argparse
 import sys
 
 from gtr_scaler.app import GtrScalerApp
+from gtr_scaler.builder import DiagramBuilder
 from gtr_scaler.domain.fretboard import FretboardProjector
 from gtr_scaler.domain.notes import NoteService
 from gtr_scaler.domain.scales import SCALE_PATTERNS, ScaleCatalog
+from gtr_scaler.engine import DiagramEngine
 from gtr_scaler.exporters.file_writer import FileWriter
 from gtr_scaler.exporters.pdf import MultiPagePdfBuilder, PdfConverter
 from gtr_scaler.renderers.ascii import AsciiRenderer
 from gtr_scaler.renderers.multi import MultiDiagramRenderer
-from gtr_scaler.renderers.svg import SvgRenderer
+from gtr_scaler.renderers.svg import SvgPostProcessor, SvgRenderer
 
 
 def _parse_args() -> argparse.Namespace:
@@ -73,17 +75,21 @@ def _build_app() -> GtrScalerApp:
     notes = NoteService()
     catalog = ScaleCatalog(notes)
     projector = FretboardProjector(notes)
-    ascii_renderer = AsciiRenderer(projector, color=None)
-    svg_renderer = SvgRenderer(projector)
-    multi_renderer = MultiDiagramRenderer(svg_renderer)
+    builder = DiagramBuilder(projector)
+    engine = DiagramEngine(builder)
+    ascii_renderer = AsciiRenderer(color=None)
+    svg_renderer = SvgRenderer()
+    svg_post_processor = SvgPostProcessor()
+    multi_renderer = MultiDiagramRenderer(svg_renderer, svg_post_processor)
     pdf_converter = PdfConverter()
     pdf_builder = MultiPagePdfBuilder(svg_renderer, multi_renderer, pdf_converter)
     file_writer = FileWriter()
     return GtrScalerApp(
         catalog,
-        projector,
+        engine,
         ascii_renderer,
         svg_renderer,
+        svg_post_processor,
         multi_renderer,
         pdf_converter,
         pdf_builder,

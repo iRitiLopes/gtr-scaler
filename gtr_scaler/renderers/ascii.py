@@ -2,8 +2,7 @@
 
 import sys
 
-from gtr_scaler.domain.fretboard import STRING_NAMES, FretboardProjector, FretCell
-from gtr_scaler.domain.scales import Scale
+from gtr_scaler.domain.fretboard import STRING_NAMES, FretCell
 from gtr_scaler.renderers._constants import _INTERVAL_LABEL, _TETRAD_INTERVALS
 
 _RESET = "\033[0m"
@@ -36,17 +35,14 @@ def _marker(cell: FretCell, color: bool) -> str:
 class AsciiRenderer:
     """Renders fretboard diagrams as ASCII art for terminal display."""
 
-    def __init__(self, projector: FretboardProjector, color: bool | None = None) -> None:
-        self._projector = projector
+    def __init__(self, color: bool | None = None) -> None:
         self._color = color
 
     def render(
         self,
-        root: str,
-        scale: Scale,
-        fret_start: int = 0,
-        fret_end: int = 12,
-        notes_per_string: int | None = None,
+        cells: list[FretCell],
+        fret_start: int,
+        fret_end: int,
         title: str | None = None,
         color: bool | None = None,
     ) -> str:
@@ -54,8 +50,6 @@ class AsciiRenderer:
 
         color: True=always, False=never, None=auto-detect (tty).
                If not provided here, uses the constructor default.
-        notes_per_string: if set, show exactly this many scale notes per string and
-                          ignore fret_end (the diagram ends at the last note needed).
         title: optional title string for the header line.
         """
         # Resolve color: explicit arg > constructor default > auto-detect
@@ -64,19 +58,10 @@ class AsciiRenderer:
         if color is None:
             color = sys.stdout.isatty()
 
-        if notes_per_string is not None:
-            cells, fret_end = self._projector.project_n_notes(
-                root, scale, notes_per_string, fret_start
-            )
-        else:
-            cells = self._projector.project(root, scale, fret_start, fret_end)
         cell_map: dict[tuple[int, int], FretCell] = {(c.string_idx, c.fret): c for c in cells}
 
         lines: list[str] = []
-        if title is not None:
-            title_str = title
-        else:
-            title_str = f"{root} {scale.display_name}"
+        title_str = title or ""
         lines.append(f"{title_str}  |  Standard tuning (E A D G B e)")
         lines.append("")
 

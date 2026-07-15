@@ -2,29 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from werkzeug.exceptions import BadRequest, NotFound
 
-from gtr_scaler.domain.fretboard import FretboardProjector
+from gtr_scaler.diagram_params import DiagramParams
 from gtr_scaler.domain.notes import NoteService
-from gtr_scaler.domain.scales import Scale, ScaleCatalog
-
-
-@dataclass(frozen=True)
-class DiagramParams:
-    """Validated, resolved parameters ready for rendering."""
-
-    root: str
-    scale_name: str
-    scale: Scale
-    mode: int
-    start_degree: int
-    frets: str
-    nps: int | None
-    all_degrees: bool
-    effective_root: str
-    effective_scale: Scale
+from gtr_scaler.domain.scales import ScaleCatalog
 
 
 def _parse_frets(value: str) -> tuple[int, int]:
@@ -56,7 +38,6 @@ def parse_diagram_params(
     args: dict[str, str],
     notes: NoteService,
     catalog: ScaleCatalog,
-    projector: FretboardProjector,
     *,
     allow_all_degrees: bool = False,
 ) -> DiagramParams:
@@ -99,6 +80,7 @@ def parse_diagram_params(
 
     # ── frets / nps ───────────────────────────────────────────────────────────
     frets = args.get("frets", "12")
+    _parse_frets(frets)  # validate format early
     nps_str = args.get("nps")
     nps: int | None = None
     if nps_str is not None:
@@ -145,23 +127,4 @@ def parse_diagram_params(
     )
 
 
-def compute_fret_start(
-    projector: FretboardProjector,
-    params: DiagramParams,
-) -> int:
-    """Compute the fret_start value for rendering, mirroring ``GtrScalerApp._get_render_params``."""
-    if params.nps is not None:
-        return projector.degree_fret_start_with_shift(
-            params.effective_root,
-            params.effective_scale,
-            params.start_degree,
-            params.nps,
-        )
-    base_start, _fret_end = _parse_frets(params.frets)
-    if params.start_degree != 1:
-        return projector.degree_fret_start(
-            params.effective_root,
-            params.effective_scale,
-            params.start_degree,
-        )
-    return base_start
+

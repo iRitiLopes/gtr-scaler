@@ -466,3 +466,19 @@ Passing both `nps` and `frets` (as a range) returns HTTP 400.
 - Database persistence
 - Frontend JavaScript framework — plain HTTP responses only
 - Alternate tunings
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+GitHub — issues live in the repo's GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default canonical labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

@@ -26,7 +26,7 @@ def test_cli_all_degrees_requires_notes():
         text=True,
     )
     assert result.returncode == 1
-    assert "--all-degrees requires --notes" in result.stderr
+    assert "all_degrees requires nps" in result.stderr
 
 
 def test_cli_all_degrees_notes_out_of_range():
@@ -119,7 +119,7 @@ def test_cli_all_degrees_start_degree_conflict():
         capture_output=True, text=True,
     )
     assert result.returncode == 1
-    assert "cannot be used with --start-degree" in result.stderr
+    assert "all_degrees cannot be used with start_degree" in result.stderr
 
 
 def test_cli_all_degrees_ascii_shape_label():

@@ -73,6 +73,75 @@ uv run python -m gtr_scaler F melodic_minor --notes 3 --all-degrees --output F_m
 uv run python -m gtr_scaler F altered --notes 4 --all-degrees --output F_alt_all_4str.pdf
 ```
 
+## Examples
+
+### ASCII output
+
+```bash
+$ uv run python -m gtr_scaler A pentatonic_minor --frets 5-9
+```
+
+```
+A Pentatonic Minor  |  Standard tuning (E A D G B e)
+
+       5    6    7    8    9
+e  |-R--|----|----|-b3-|----|
+B  |-5--|----|----|-b7-|----|
+G  |-b3-|----|-4--|----|-5--|
+D  |-b7-|----|-R--|----|----|
+A  |-4--|----|-5--|----|----|
+E  |-R--|----|----|-b3-|----|
+
+  R=1   b3=m3   4=P4   5=P5   b7=m7
+```
+
+### Mode + notes-per-string
+
+```bash
+$ uv run python -m gtr_scaler C major --mode 2 --notes 3
+```
+
+```
+D Dorian  |  Standard tuning (E A D G B e)
+
+      10   11   12   13   14   15
+e  |----|----|-2--|-b3-|----|-4--|
+B  |----|----|-6--|-b7-|----|-R--|
+G  |-b3-|----|-4--|----|-5--|----|
+D  |-b7-|----|-R--|----|-2--|----|
+A  |-4--|----|-5--|----|-6--|----|
+E  |-R--|----|-2--|-b3-|----|----|
+
+  R=1   2=M2   b3=m3   4=P4   5=P5   6=M6   b7=m7
+```
+
+### All degrees (CAGED shapes)
+
+```bash
+$ uv run python -m gtr_scaler A pentatonic_minor --notes 3 --all-degrees
+```
+
+Outputs 5 diagrams (one per scale degree), each with its own "Shape N" title.
+
+### SVG export
+
+```bash
+$ uv run python -m gtr_scaler A pentatonic_minor --output scale.svg
+```
+
+Produces a landscape-oriented SVG with colored markers:
+- **Red** = Root
+- **Steel blue** = Tetrad tones (3rd, 5th, 7th)
+- **Olive** = Passing tones
+
+### PDF export (multi-page for all-degrees)
+
+```bash
+$ uv run python -m gtr_scaler C major --notes 3 --all-degrees --output shapes.pdf
+```
+
+Generates a multi-page PDF with up to 3 diagrams per page.
+
 ## Web Server
 
 Run the Flask server to preview scales in a browser:

@@ -3,7 +3,8 @@
 from io import BytesIO
 from pathlib import Path
 
-from gtr_scaler.renderers.multi import DiagramSpec, MultiDiagramRenderer
+from gtr_scaler.diagram_params import DiagramData
+from gtr_scaler.renderers.multi import MultiDiagramRenderer
 from gtr_scaler.renderers.svg import SvgRenderer
 
 
@@ -49,22 +50,15 @@ class MultiPagePdfBuilder:
 
     def build(
         self,
-        diagrams: list[DiagramSpec],
-        titles: list[str] | None = None,
+        diagrams: list[DiagramData],
         max_per_page: int = 3,
     ) -> bytes:
-        """Build a multi-page PDF from diagram specs.
+        """Build a multi-page PDF from diagram data.
 
         Diagrams are split into chunks of ``max_per_page`` per page.
         Each chunk is rendered as a single SVG, converted to PDF,
         then all pages are merged with pypdf.
         """
-        if titles is not None and len(titles) != len(diagrams):
-            raise ValueError(
-                f"titles length ({len(titles)}) must match "
-                f"diagrams length ({len(diagrams)})"
-            )
-
         try:
             from pypdf import PdfReader, PdfWriter
         except ImportError as exc:
@@ -77,8 +71,7 @@ class MultiPagePdfBuilder:
         for start in range(0, len(diagrams), max_per_page):
             end = start + max_per_page
             chunk = diagrams[start:end]
-            chunk_titles = titles[start:end] if titles else None
-            page_svg = self._multi_renderer.render(chunk, titles=chunk_titles)
+            page_svg = self._multi_renderer.render(chunk)
             page_bytes = self._converter.svg_to_pdf(page_svg)
             page_bytes_list.append(page_bytes)
 

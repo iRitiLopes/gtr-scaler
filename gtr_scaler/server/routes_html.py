@@ -8,13 +8,9 @@ import json
 from flask import Blueprint, Response, current_app, render_template, request
 from werkzeug.exceptions import HTTPException
 
+from gtr_scaler.diagram_params import DiagramParams
 from gtr_scaler.domain.scales import SCALE_PATTERNS
-from gtr_scaler.server.validation import (
-    DiagramParams,
-    _parse_frets,
-    compute_fret_start,
-    parse_diagram_params,
-)
+from gtr_scaler.server.validation import parse_diagram_params
 
 pages_bp = Blueprint("pages", __name__)
 
@@ -95,15 +91,14 @@ def index() -> str | Response:
 
     notes = current_app.config["NOTE_SERVICE"]
     catalog = current_app.config["SCALE_CATALOG"]
-    projector = current_app.config["PROJECTOR"]
+    engine = current_app.config["DIAGRAM_ENGINE"]
 
     is_partial = request.args.get("partial") == "1"
 
     try:
         params = parse_diagram_params(
-            args, notes, catalog, projector, allow_all_degrees=True
+            args, notes, catalog, allow_all_degrees=True
         )
-        fret_start = compute_fret_start(projector, params)
     except HTTPException as exc:
         if is_partial:
             return Response(
@@ -116,63 +111,39 @@ def index() -> str | Response:
 
     if is_partial:
         return Response(
-            _render_html5_fragment(params, fret_start, title),
+            _render_html5_fragment(params, title),
             mimetype="text/html",
         )
 
-    return _render_html5(params, fret_start, title, scales, form, counts)
+    return _render_html5(params, title, scales, form, counts)
 
 
-def _render_html5_fragment(params: DiagramParams, fret_start: int, title: str) -> str:
+def _render_html5_fragment(params: DiagramParams, title: str) -> str:
     """Return just the HTML5 diagram fragment (no template wrapper)."""
     html5_renderer = current_app.config["HTML5_RENDERER"]
+    engine = current_app.config["DIAGRAM_ENGINE"]
 
     if params.all_degrees:
-        projector = current_app.config["PROJECTOR"]
-        fragments: list[str] = []
-        for deg in range(1, len(params.effective_scale.intervals) + 1):
-            fs = projector.degree_fret_start_with_shift(
-                params.effective_root, params.effective_scale, deg, params.nps
-            )
-            _cells, fe = projector.project_n_notes(
-                params.effective_root, params.effective_scale, params.nps, fs
-            )
-            deg_title = (
-                f"{params.effective_root} {params.effective_scale.display_name}"
-                f" \u2014 Shape {deg}"
-            )
-            fragment = html5_renderer.render(
-                params.effective_root,
-                params.effective_scale,
-                fs,
-                fe,
-                notes_per_string=params.nps,
-                title=deg_title,
-            )
-            fragments.append(fragment)
+        data_list = engine.build_all_degrees(params)
+        fragments = [
+            html5_renderer.render(d.cells, d.fret_start, d.fret_end, d.title)
+            for d in data_list
+        ]
         return "\n".join(fragments)
     else:
-        fret_start, fret_end = _resolve_fret_range(params, fret_start)
-        return html5_renderer.render(
-            params.effective_root,
-            params.effective_scale,
-            fret_start,
-            fret_end,
-            notes_per_string=params.nps,
-            title=title,
-        )
+        data = engine.build_single(params)
+        return html5_renderer.render(data.cells, data.fret_start, data.fret_end, data.title)
 
 
 def _render_html5(
     params: DiagramParams,
-    fret_start: int,
     title: str,
     scales: list[tuple[str, str]],
     form: dict[str, str],
     counts: dict[str, int],
 ) -> str:
     """Render the HTML5 preview template."""
-    html_output = _render_html5_fragment(params, fret_start, title)
+    html_output = _render_html5_fragment(params, title)
     return render_template(
         "index.html",
         scales=scales,
@@ -185,21 +156,3 @@ def _render_html5(
         notes=_CHROMATIC_NOTES,
         scale_colors=_SCALE_COLORS,
     )
-
-
-def _resolve_fret_range(params: DiagramParams, fret_start: int) -> tuple[int, int]:
-    """Return (fret_start, fret_end) based on params.nps or params.frets."""
-    projector = current_app.config["PROJECTOR"]
-
-    if params.nps is not None:
-        _cells, fret_end = projector.project_n_notes(
-            params.effective_root, params.effective_scale, params.nps, fret_start
-        )
-        return fret_start, fret_end
-
-    _base_start, fret_end = _parse_frets(params.frets)
-    if params.start_degree != 1:
-        fret_start = projector.degree_fret_start(
-            params.effective_root, params.effective_scale, params.start_degree
-        )
-    return fret_start, fret_end
