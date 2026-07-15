@@ -16,7 +16,7 @@ from gtr_scaler.renderers.multi import MultiDiagramRenderer
 from gtr_scaler.renderers.svg import SvgPostProcessor, SvgRenderer
 
 
-def _parse_args() -> argparse.Namespace:
+def _parse_render_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="gtr-scaler",
         description="Guitar scale fretboard viewer",
@@ -71,6 +71,31 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _parse_serve_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="gtr-scaler serve",
+        description="Run the gtr-scaler Flask web server",
+    )
+    parser.add_argument(
+        "--host",
+        default="0.0.0.0",
+        help="Host to bind to (default: 0.0.0.0 — accessible on local network)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=5000,
+        help="Port to bind to (default: 5000)",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="Enable Flask debug mode",
+    )
+    return parser.parse_args()
+
+
 def _build_app() -> GtrScalerApp:
     notes = NoteService()
     catalog = ScaleCatalog(notes)
@@ -97,11 +122,31 @@ def _build_app() -> GtrScalerApp:
     )
 
 
-def main() -> None:
-    args = _parse_args()
+def _cli_main() -> int:
+    args = _parse_render_args()
     app = _build_app()
-    sys.exit(app.run(args))
+    return app.run(args)
+
+
+def _serve_main() -> int:
+    args = _parse_serve_args()
+    from gtr_scaler.server.app import create_app
+
+    app = create_app()
+    print(f"Starting gtr-scaler server on http://{args.host}:{args.port}")
+    if args.host == "0.0.0.0":
+        print("Server is accessible from other devices on your local network.")
+    app.run(host=args.host, port=args.port, debug=args.debug)
+    return 0
+
+
+def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "serve":
+        # Remove "serve" from argv so the server parser doesn't see it
+        sys.argv = [sys.argv[0]] + sys.argv[2:]
+        return _serve_main()
+    return _cli_main()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

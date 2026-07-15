@@ -398,16 +398,16 @@ a JSON API for programmatic access.
 
 ```bash
 # Default: accessible from any device on your local network
-gtr-scaler-server
+gtr-scaler serve
 
 # Custom port
-gtr-scaler-server --port 8080
+gtr-scaler serve --port 8080
 
 # Localhost only
-gtr-scaler-server --host 127.0.0.1
+gtr-scaler serve --host 127.0.0.1
 
 # Debug mode with auto-reload
-gtr-scaler-server --debug
+gtr-scaler serve --debug
 ```
 
 ### HTML Frontend (`GET /`)

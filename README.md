@@ -22,7 +22,7 @@ irm https://astral.sh/uv/install.ps1 | iex
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-### Clone and sync
+### From source (recommended for development)
 
 ```bash
 git clone <repository-url>
@@ -30,47 +30,58 @@ cd gtr-scaler
 uv sync --group dev
 ```
 
+After syncing, use `uv run gtr-scaler` inside the project directory.
+
+### Install as a package
+
+```bash
+# Install directly from the repo
+uv pip install git+https://github.com/iRitiLopes/gtr-scaler.git
+
+# Or install in editable mode for development
+uv pip install -e .
+```
+
+After installation, the `gtr-scaler` command is available globally.
+
 ## Usage
 
 ```bash
 # A minor pentatonic, frets 0-12 (default)
-uv run python -m gtr_scaler
-
-# Shorthand (uses the project.scripts entry point)
-uv run gtr-scaler
+gtr-scaler
 
 # E major pentatonic
-uv run python -m gtr_scaler E pentatonic_major
+gtr-scaler E pentatonic_major
 
 # Box position at frets 5-9
-uv run python -m gtr_scaler A pentatonic_minor --frets 5-9
+gtr-scaler A pentatonic_minor --frets 5-9
 
 # Full 22-fret neck
-uv run python -m gtr_scaler A pentatonic_minor --frets 22
+gtr-scaler A pentatonic_minor --frets 22
 
 # D Dorian (2nd mode of C major)
-uv run python -m gtr_scaler C major --mode 2
+gtr-scaler C major --mode 2
 
 # A Aeolian (6th mode of C major)
-uv run python -m gtr_scaler C major --mode 6
+gtr-scaler C major --mode 6
 
 # 3 notes per string, continuous flow
-uv run python -m gtr_scaler C pentatonic_major --notes 3
+gtr-scaler C pentatonic_major --notes 3
 
 # Start from the 3rd degree on the low E string
-uv run python -m gtr_scaler C pentatonic_major --notes 3 --start-degree 3
+gtr-scaler C pentatonic_major --notes 3 --start-degree 3
 
 # Export to SVG
-uv run python -m gtr_scaler A pentatonic_minor --output scale.svg
+gtr-scaler A pentatonic_minor --output scale.svg
 
 # Export to PDF
-uv run python -m gtr_scaler A pentatonic_minor --output scale.pdf
+gtr-scaler A pentatonic_minor --output scale.pdf
 
 # Export all shapes to PDF
-uv run python -m gtr_scaler F melodic_minor --notes 3 --all-degrees --output F_mel_min.pdf
+gtr-scaler F melodic_minor --notes 3 --all-degrees --output F_mel_min.pdf
 
 # Export all shapes 4 per strings to PDF
-uv run python -m gtr_scaler F altered --notes 4 --all-degrees --output F_alt_all_4str.pdf
+gtr-scaler F altered --notes 4 --all-degrees --output F_alt_all_4str.pdf
 ```
 
 ## Examples
@@ -78,7 +89,7 @@ uv run python -m gtr_scaler F altered --notes 4 --all-degrees --output F_alt_all
 ### ASCII output
 
 ```bash
-$ uv run python -m gtr_scaler A pentatonic_minor --frets 5-9
+$ gtr-scaler A pentatonic_minor --frets 5-9
 ```
 
 ```
@@ -98,7 +109,7 @@ E  |-R--|----|----|-b3-|----|
 ### Mode + notes-per-string
 
 ```bash
-$ uv run python -m gtr_scaler C major --mode 2 --notes 3
+$ gtr-scaler C major --mode 2 --notes 3
 ```
 
 ```
@@ -118,7 +129,7 @@ E  |-R--|----|-2--|-b3-|----|----|
 ### All degrees (CAGED shapes)
 
 ```bash
-$ uv run python -m gtr_scaler A pentatonic_minor --notes 3 --all-degrees
+$ gtr-scaler A pentatonic_minor --notes 3 --all-degrees
 ```
 
 Outputs 5 diagrams (one per scale degree), each with its own "Shape N" title.
@@ -126,7 +137,7 @@ Outputs 5 diagrams (one per scale degree), each with its own "Shape N" title.
 ### SVG export
 
 ```bash
-$ uv run python -m gtr_scaler A pentatonic_minor --output scale.svg
+$ gtr-scaler A pentatonic_minor --output scale.svg
 ```
 
 Produces a landscape-oriented SVG with colored markers:
@@ -137,7 +148,7 @@ Produces a landscape-oriented SVG with colored markers:
 ### PDF export (multi-page for all-degrees)
 
 ```bash
-$ uv run python -m gtr_scaler C major --notes 3 --all-degrees --output shapes.pdf
+$ gtr-scaler C major --notes 3 --all-degrees --output shapes.pdf
 ```
 
 Generates a multi-page PDF with up to 3 diagrams per page.
@@ -148,13 +159,13 @@ Run the Flask server to preview scales in a browser:
 
 ```bash
 # Accessible from any device on your local network (default)
-uv run gtr-scaler-server
+gtr-scaler serve
 
 # Custom port
-uv run gtr-scaler-server --port 8080
+gtr-scaler serve --port 8080
 
 # Localhost only
-uv run gtr-scaler-server --host 127.0.0.1
+gtr-scaler serve --host 127.0.0.1
 ```
 
 The HTML frontend features interactive circular note buttons and colored scale

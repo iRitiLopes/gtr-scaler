@@ -9,7 +9,7 @@ from gtr_scaler.server.app import create_app
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="gtr-scaler-server",
+        prog="gtr-scaler serve",
         description="Run the gtr-scaler Flask web server",
     )
     parser.add_argument(
